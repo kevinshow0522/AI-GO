@@ -1,0 +1,7 @@
+/build/
+/work/ai-switch-desk/build/
+.vs/
+bin/
+obj/
+*.user
+*.suo
