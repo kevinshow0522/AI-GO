@@ -61,6 +61,9 @@ namespace AISwitchDesk
 
 		public bool ReturnAttachmentStarted;
 
+		// Older records used the file picker. A receipt scopes native delivery to one leg.
+		public string NativeDropReceipt;
+
 		public bool FromFolder;
 
 		public string SourceRoute;

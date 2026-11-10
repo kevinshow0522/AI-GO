@@ -77,13 +77,18 @@ namespace AISwitchDesk
 			try
 			{
 				File.WriteAllText(text, body, Utf8);
-				if (File.Exists(path))
+				for (int attempt = 0; ; attempt++)
 				{
-					File.Replace(text, path, null);
-				}
-				else
-				{
-					File.Move(text, path);
+					try
+					{
+						if (File.Exists(path)) File.Replace(text, path, null);
+						else File.Move(text, path);
+						break;
+					}
+					catch (IOException error)
+					{
+						if (!File.Exists(text) || !WaitForFileChange(error, attempt)) throw;
+					}
 				}
 			}
 			finally
@@ -93,6 +98,16 @@ namespace AISwitchDesk
 					File.Delete(text);
 				}
 			}
+		}
+
+		private static bool WaitForFileChange(IOException error, int attempt)
+		{
+			// Windows readers and file scanners can temporarily deny rename/delete.
+			int code = error.HResult & 0xffff;
+			if (attempt >= 5 || (code != 5 && code != 32 && code != 33 && code != 80 && code != 183 && code != 1175))
+				return false;
+			Thread.Sleep(40 << attempt);
+			return true;
 		}
 
 		internal static Handoff Create(string from, string name, string instruction, string task, string content, string localFile, string fixedId = null, bool newChat = false, bool background = false, string origin = null, long originWindow = 0L, string element = null, string page = null, bool pairChats = false, bool roundTrip = false, string sourceRoute = null, string sourceProof = null, string requestKey = null, string initialStage = null, bool fromFolder = false)
@@ -154,19 +169,19 @@ namespace AISwitchDesk
 					File.WriteAllText(Path.Combine(text3, handoff2.Name), content, Utf8);
 				}
 				File.WriteAllText(Path.Combine(text2, "state.json"), Json.Serialize(handoff2), Utf8);
-				try
+				for (int attempt = 0; ; attempt++)
 				{
-					Directory.Move(text2, text);
-				}
-				catch (IOException)
-				{
-					if (Directory.Exists(text))
+					try
 					{
-						return Existing(handoff2, content);
+						Directory.Move(text2, text);
+						return handoff2;
 					}
-					throw;
+					catch (IOException error)
+					{
+						if (Directory.Exists(text)) return Existing(handoff2, content);
+						if (!WaitForFileChange(error, attempt)) throw;
+					}
 				}
-				return handoff2;
 			}
 			finally
 			{
@@ -180,6 +195,10 @@ namespace AISwitchDesk
 		private static Handoff Existing(Handoff expected, string content)
 		{
 			Handoff handoff = Load(expected.Id);
+			if (handoff.RoundTrip != expected.RoundTrip)
+			{
+				throw new InvalidOperationException("这个交接编号已用于不同的回传设置，请使用新的请求编号。");
+			}
 			if (handoff.From != expected.From || handoff.Name != expected.Name || handoff.Instruction != expected.Instruction || handoff.NewChat != expected.NewChat || (expected.SourceRoute != null && handoff.SourceRoute != null && expected.SourceRoute != handoff.SourceRoute) || (expected.SourceProof != null && handoff.SourceProof != null && expected.SourceProof != handoff.SourceProof) || content == null || !File.Exists(FileOf(handoff)) || File.ReadAllText(FileOf(handoff)) != content)
 			{
 				throw new InvalidOperationException("这个交接编号已用于其他文件。");
@@ -189,7 +208,9 @@ namespace AISwitchDesk
 
 		internal static Handoff Load(string id)
 		{
-			return Json.Deserialize<Handoff>(File.ReadAllText(Path.Combine(Folder(id), "state.json")));
+			using (var file = new FileStream(Path.Combine(Folder(id), "state.json"), FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete))
+			using (var reader = new StreamReader(file, Utf8))
+				return Json.Deserialize<Handoff>(reader.ReadToEnd());
 		}
 
 		internal static List<Handoff> All()
@@ -248,9 +269,16 @@ namespace AISwitchDesk
 					{
 						throw new InvalidOperationException("交接状态已更新。");
 					}
+					long previousUpdate = job.Updated;
 					job.Revision++;
 					job.Updated = DateTime.UtcNow.Ticks;
-					AtomicText(Path.Combine(Folder(job.Id), "state.json"), Json.Serialize(job));
+					try { AtomicText(Path.Combine(Folder(job.Id), "state.json"), Json.Serialize(job)); }
+					catch
+					{
+						job.Revision--;
+						job.Updated = previousUpdate;
+						throw;
+					}
 				}
 				finally
 				{

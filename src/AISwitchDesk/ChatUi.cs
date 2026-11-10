@@ -507,6 +507,11 @@ namespace AISwitchDesk
 
 		internal bool HasAttachments(AutomationElement editor, bool includePending = true)
 		{
+			return HasOtherAttachments(editor, includePending, null);
+		}
+
+		private bool HasOtherAttachments(AutomationElement editor, bool includePending, string ownedFile)
+		{
 			AutomationElement automationElement = ComposerArea(editor);
 			if (automationElement == null)
 			{
@@ -517,7 +522,10 @@ namespace AISwitchDesk
 				return true;
 			}
 			if (Of(automationElement, ControlType.Text).Any(e => !e.Current.IsOffscreen &&
-				Regex.IsMatch(Name(e), "^[^\\r\\n/\\\\]{1,220}\\.[a-zA-Z0-9]{1,12}$") && IsAttachmentNode(e, automationElement, editor)))
+				Regex.IsMatch(Name(e), "^[^\\r\\n/\\\\]{1,220}\\.[a-zA-Z0-9]{1,12}$") &&
+				!string.Equals(Name(e), ownedFile, StringComparison.OrdinalIgnoreCase) &&
+				!string.Equals(Name(e), Path.GetFileNameWithoutExtension(ownedFile), StringComparison.OrdinalIgnoreCase) &&
+				IsAttachmentNode(e, automationElement, editor)))
 			{
 				return true;
 			}
@@ -526,7 +534,11 @@ namespace AISwitchDesk
 			{
 				automationElement = parent;
 			}
-			return Of(automationElement, ControlType.Button).Any((AutomationElement e) => !e.Current.IsOffscreen && AttachmentAction(Name(e)));
+			var removeButtons = Of(automationElement, ControlType.Button).Where(e => !e.Current.IsOffscreen && AttachmentAction(Name(e)));
+			if (ownedFile == null) return removeButtons.Any();
+			var labels = removeButtons.Select(Name).ToArray();
+			return labels.Length > 1 || labels.Any(label => !RemovalNamesFile(label, ownedFile) &&
+				Regex.IsMatch(label.TrimEnd('」', '”', '"', '\'', ')'), @"\.[a-zA-Z0-9]{1,12}$"));
 		}
 
 		internal bool HasFile(string file)
@@ -743,53 +755,90 @@ namespace AISwitchDesk
 			return false;
 		}
 
-		internal void VerifyAttachment(Handoff j)
-		{
-			CheckRoute();
-			if ((!j.Returning && ExpectedRoute == null && !string.IsNullOrEmpty(j.TargetPage) && PageKey() != j.TargetPage) || !HasFile(j.SendingName))
-			{
-				throw new InvalidOperationException("目标聊天或附件已变化，请核对后继续。");
-			}
-		}
-
-		internal void Attach(Handoff j)
+		private void CheckHandoffTarget(Handoff job)
 		{
 			Guard();
-			AutomationElement automationElement = FileDialog();
-			AutomationElement automationElement2 = ChooseLocal();
-			AutomationElement next = ((j.UploadStarted && automationElement == null && automationElement2 == null) ? UploadItem() : null);
-			if (!j.UploadStarted && (automationElement != null || automationElement2 != null))
+			if (!job.Returning && ExpectedRoute == null && !string.IsNullOrEmpty(job.TargetPage) && PageKey() != job.TargetPage)
+				throw new InvalidOperationException("目标聊天已变化，请核对后继续。");
+		}
+
+		private bool HasHandoffFile(Handoff job)
+		{
+			return job.NativeDropReceipt == job.Receipt ? HasDraftFile(job.SendingName) : HasFile(job.SendingName);
+		}
+
+		internal void VerifyAttachment(Handoff job)
+		{
+			CheckHandoffTarget(job);
+			if (!HasHandoffFile(job) || HasOtherAttachments(Editor(), true, job.SendingName))
+				throw new InvalidOperationException("目标输入框的附件已变化，请核对后继续。");
+		}
+
+		// Returns true when a retry finds the file already attached to this draft.
+		private bool CheckHandoffDraft(Handoff job)
+		{
+			CheckHandoffTarget(job);
+			var editor = Editor();
+			EmptyOrOwned(editor, job.ReceiverPrompt());
+			if (ComposerArea(editor) == null)
+				throw new InvalidOperationException("未识别到聊天附件控件。");
+			bool attached = job.UploadStarted && HasHandoffFile(job);
+			if (HasOtherAttachments(editor, true, attached ? job.SendingName : null))
+				throw new InvalidOperationException("目标输入框已有其他附件。请核对后继续。");
+			return attached;
+		}
+
+		internal void Attach(Handoff job)
+		{
+			CheckHandoffTarget(job);
+			string path = job.Returning ? RelayStore.ResultFile(job) : RelayStore.FileOf(job);
+			if (!File.Exists(path)) throw new FileNotFoundException("交接文件已不存在。", path);
+			var dialog = FileDialog();
+			var chooser = dialog == null ? ChooseLocal() : null;
+			if (dialog != null || chooser != null)
 			{
-				throw new InvalidOperationException("请先关闭已有的文件选择框，再继续。");
+				if (!job.UploadStarted || job.NativeDropReceipt == job.Receipt)
+					throw new InvalidOperationException("请先关闭已有的文件选择框，再继续。");
+				PickAttachment(path, dialog, chooser, null);
 			}
-			if (automationElement == null && automationElement2 == null)
+			else
 			{
-				AutomationElement automationElement3 = Editor();
-				EmptyOrOwned(automationElement3, j.ReceiverPrompt());
-				if (j.UploadStarted && HasFile(j.SendingName))
+				DismissDraftMenu();
+				if (CheckHandoffDraft(job)) return;
+				if (job.NativeDropReceipt == job.Receipt && Until(() => HasDraftFile(job.SendingName) ? "attached" : null, 1000) != null)
 				{
+					VerifyAttachment(job);
 					return;
 				}
-				AutomationElement automationElement4 = ComposerArea(automationElement3);
-				if (automationElement4 == null)
+				bool alreadyAttached = false;
+				try
 				{
-					throw new InvalidOperationException("未识别到聊天附件控件。");
+					DropDraftFiles(new[] { path }, delegate {
+						alreadyAttached = CheckHandoffDraft(job);
+						if (alreadyAttached) throw new OperationCanceledException();
+						job.UploadStarted = true;
+						job.NativeDropReceipt = job.Receipt;
+						RelayStore.Save(job);
+					});
 				}
-				if (HasAttachments(automationElement3))
+				catch (OperationCanceledException)
 				{
-					throw new InvalidOperationException("目标输入框已有附件。请清空后继续。");
+					if (!alreadyAttached) throw;
+					return;
 				}
-				if (!j.UploadStarted)
+				catch (NotSupportedException)
 				{
-					j.UploadStarted = true;
-					RelayStore.Save(j);
+					// Only fall back when the endpoint rejected the drop before submission.
+					if (job.NativeDropReceipt == job.Receipt) throw;
+					if (CheckHandoffDraft(job)) return;
+					job.UploadStarted = true;
+					RelayStore.Save(job);
+					PickAttachment(path, null, null, null);
 				}
 			}
-			PickAttachment(j.Returning ? RelayStore.ResultFile(j) : RelayStore.FileOf(j), automationElement, automationElement2, next);
-			if (Until(() => (!HasFile(j.SendingName)) ? null : "attached", 16000) == null)
-			{
+			if (Until(() => { CheckHandoffTarget(job); return HasHandoffFile(job) ? "attached" : null; }, 16000) == null)
 				throw new InvalidOperationException("未确认附件已加入输入框。请检查目标聊天后继续。");
-			}
+			VerifyAttachment(job);
 		}
 
 		internal void DismissDraftMenu()

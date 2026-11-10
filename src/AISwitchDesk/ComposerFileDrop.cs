@@ -70,7 +70,7 @@ namespace AISwitchDesk
                 if (hit == root) break;
                 hit = GetParent(hit);
             }
-            throw new InvalidOperationException("聊天窗口没有注册可接收文件的拖放入口。");
+            throw new NotSupportedException("聊天窗口没有注册可接收文件的拖放入口。");
         }
 
         private static IntPtr CreateFiles(string[] files)
@@ -173,7 +173,7 @@ namespace AISwitchDesk
                     ref iid,out endpoint,out local));
                 int brokered;
                 Marshal.ThrowExceptionForHR(endpoint.IsBrokeredTarget(out brokered));
-                if (brokered != 0) throw new InvalidOperationException("目标窗口要求通过系统拖放代理处理文件。");
+                if (brokered != 0) throw new NotSupportedException("目标窗口要求通过系统拖放代理处理文件。");
                 uint sourceThread = GetCurrentThreadId();
                 long point = ((long)y << 32) | (uint)x;
                 using (var packet = new FilePacket(files))
@@ -191,7 +191,7 @@ namespace AISwitchDesk
                             Marshal.ThrowExceptionForHR(endpoint.DragDrop(IntPtr.Zero,target,IntPtr.Zero,2,1,point,ref effect,sourceThread,IntPtr.Zero,IntPtr.Zero));
                             if ((effect & Copy) != 0 && i > 0) break;
                         }
-                        if ((effect & Copy) == 0) throw new InvalidOperationException("聊天输入框未接受此次文件拖放。");
+                        if ((effect & Copy) == 0) throw new NotSupportedException("聊天输入框未接受此次文件拖放。");
                         verify();
                         if (TargetAt(root,x,y) != target) throw new InvalidOperationException("聊天窗口发生变化，文件尚未投递。");
                         if (beforeDrop != null) beforeDrop();
