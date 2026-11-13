@@ -31,7 +31,7 @@ New-Item -ItemType Directory -Force -Path $outDir | Out-Null
 
 $references = @('System.dll','System.Core.dll','System.Drawing.dll','System.Windows.Forms.dll','System.Xml.dll','System.Xaml.dll') |
     ForEach-Object { '/r:' + (Join-Path $frameworkDir $_) }
-$references += @('PresentationFramework.dll','PresentationCore.dll','WindowsBase.dll','WindowsFormsIntegration.dll','UIAutomationClient.dll','UIAutomationTypes.dll') |
+$references += @('PresentationFramework.dll','PresentationCore.dll','WindowsBase.dll','WindowsFormsIntegration.dll','UIAutomationClient.dll','UIAutomationTypes.dll','UIAutomationProvider.dll') |
     ForEach-Object { '/r:' + (Join-Path (Join-Path $frameworkDir 'WPF') $_) }
 
 function Find-WebView2([string]$name, [string]$hint) {
@@ -95,7 +95,7 @@ foreach ($test in $tests) {
         Copy-Item -LiteralPath $core, $forms, $loader -Destination $outDir -Force
         $extra = @('/r:' + $core, '/r:' + $forms)
     }
-    $sources = $test.Sources | ForEach-Object { Join-Path $PSScriptRoot $_ }
+    $sources = @($test.Sources | ForEach-Object { Join-Path $PSScriptRoot $_ })
     $log = & (Join-Path $frameworkDir 'csc.exe') /nologo /target:exe /platform:x64 /optimize+ /unsafe+ ('/out:' + $exe) @references @extra @sources 2>&1
     if ($LASTEXITCODE -ne 0) {
         Add-Result $test.Name 'FAIL' 'did not compile'
