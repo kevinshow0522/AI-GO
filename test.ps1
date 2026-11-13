@@ -30,6 +30,8 @@ $outDir = Join-Path $PSScriptRoot 'build\tests'
 if (!$SkipBuild) { & (Join-Path $PSScriptRoot 'build.ps1') -OutputPath $App | Out-Null }
 if (!(Test-Path -LiteralPath $App)) { throw "Missing $App. Run build.ps1 first." }
 $App = (Resolve-Path -LiteralPath $App).Path
+# The tests run from build\tests, so a relative path would point elsewhere.
+if (Test-Path -LiteralPath $Baseline) { $Baseline = (Resolve-Path -LiteralPath $Baseline).Path }
 New-Item -ItemType Directory -Force -Path $outDir | Out-Null
 
 $references = @('System.dll','System.Core.dll','System.Drawing.dll','System.Windows.Forms.dll','System.Xml.dll','System.Xaml.dll') |

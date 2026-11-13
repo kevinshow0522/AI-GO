@@ -34,17 +34,19 @@ jobs:
         shell: powershell
         run: .\baseline-src\build.ps1 -OutputPath (Join-Path $PWD 'build\baseline\AISwitchDesk.exe')
 
+      # The reference goes first: the first browser launch on a fresh machine
+      # can take the foreground, which one test treats as a failure.
+      - name: Run the regression programs on the reference (informational)
+        shell: powershell
+        continue-on-error: true
+        run: .\test.ps1 -SkipBuild -FetchWebView2 -App build\baseline\AISwitchDesk.exe -Baseline build\baseline\AISwitchDesk.exe -TimeoutSeconds 180 *>&1 | Tee-Object -FilePath build\test-log-reference.txt
+
       # These drive real windows, so a hosted runner can fail them for reasons
       # unrelated to the change. Their result is reported but does not gate.
       - name: Run the regression programs (informational)
         shell: powershell
         continue-on-error: true
         run: .\test.ps1 -SkipBuild -FetchWebView2 -Baseline build\baseline\AISwitchDesk.exe -TimeoutSeconds 180 *>&1 | Tee-Object -FilePath build\test-log.txt
-
-      - name: Run the same programs on the reference (informational)
-        shell: powershell
-        continue-on-error: true
-        run: .\test.ps1 -SkipBuild -FetchWebView2 -App build\baseline\AISwitchDesk.exe -Baseline build\baseline\AISwitchDesk.exe -TimeoutSeconds 180 *>&1 | Tee-Object -FilePath build\test-log-reference.txt
 
       - uses: actions/upload-artifact@v4
         if: always()
