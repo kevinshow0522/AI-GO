@@ -97,7 +97,7 @@ namespace AISwitchDesk
 			case "ask":
 				if (ui.HasAttachments(ui.Editor()))
 				{
-					throw new InvalidOperationException("目标输入框已有草稿附件，请先处理后再继续。");
+					throw Retry.Later(new InvalidOperationException("目标输入框已有草稿附件，请先处理后再继续。"));
 				}
 				ui.Send(j.WriterPrompt(), delegate
 				{

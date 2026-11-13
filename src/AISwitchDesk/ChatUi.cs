@@ -173,7 +173,8 @@ namespace AISwitchDesk
 						ancestor = TreeWalker.ControlViewWalker.GetParent(ancestor);
 					}
 				}
-				throw new InvalidOperationException(list.Count == 0 ? "请登录并打开一个可输入的聊天，再拖入文件。" : "检测到多个编辑区，暂未确定聊天输入框。文件尚未加入。");
+				if (list.Count == 0) throw Retry.Later(new InvalidOperationException("请登录并打开一个可输入的聊天，再拖入文件。"));
+				throw new InvalidOperationException("检测到多个编辑区，暂未确定聊天输入框。文件尚未加入。");
 			}
 			return list[selected];
 		}
@@ -240,7 +241,7 @@ namespace AISwitchDesk
 			}, 8000);
 			if (automationElement == null)
 			{
-				throw new InvalidOperationException("请先登录并打开聊天输入框，再重试。");
+				throw Retry.Later(new InvalidOperationException("请先登录并打开聊天输入框，再重试。"));
 			}
 		}
 
@@ -612,7 +613,7 @@ namespace AISwitchDesk
 			string text = DraftText(editor);
 			if (text.Length != 0 && !SameText(text, ours))
 			{
-				throw new InvalidOperationException("目标输入框已有草稿。请先处理草稿，再点继续。");
+				throw Retry.Later(new InvalidOperationException("目标输入框已有草稿。请先处理草稿，再点继续。"));
 			}
 		}
 
@@ -723,7 +724,7 @@ namespace AISwitchDesk
 			}
 			if (HasDraftOrAttachment())
 			{
-				throw new InvalidOperationException("接收方有未发送的草稿或附件，后台会在输入框清空后继续。");
+				throw Retry.Later(new InvalidOperationException("接收方有未发送的草稿或附件，后台会在输入框清空后继续。"));
 			}
 			j.RequestedNew = true;
 			RelayStore.Save(j);
@@ -1004,7 +1005,7 @@ namespace AISwitchDesk
 			Guard();
 			if (DraftDrop.Protects(this))
 			{
-				throw new InvalidOperationException("当前草稿中有手动拖入的附件，请先发送或移除。");
+				throw Retry.Later(new InvalidOperationException("当前草稿中有手动拖入的附件，请先发送或移除。"));
 			}
 			AutomationElement automationElement = Editor();
 			EmptyOrOwned(automationElement, prompt);
@@ -1024,12 +1025,12 @@ namespace AISwitchDesk
 			AutomationElement automationElement2 = Until(() => ComposerControl(Editor(), IsSend), 10000);
 			if (automationElement2 == null)
 			{
-				throw new InvalidOperationException("客户端尚未启用发送按钮。请检查上传或登录状态。");
+				throw Retry.Later(new InvalidOperationException("客户端尚未启用发送按钮。请检查上传或登录状态。"));
 			}
 			Guard();
 			if (!SameText(Value(Editor()), prompt))
 			{
-				throw new InvalidOperationException("输入内容已变化，请核对草稿。");
+				throw Retry.Later(new InvalidOperationException("输入内容已变化，请核对草稿。"));
 			}
 			beforeClick();
 			Act(automationElement2);

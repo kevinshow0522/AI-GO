@@ -162,7 +162,7 @@ namespace AISwitchDesk
 			{
 				if (ui.FileDialog(true) != null)
 				{
-					throw new IOException("请先处理 GPT 已经打开的另存为窗口。");
+					throw Retry.Later(new IOException("请先处理 GPT 已经打开的另存为窗口。"));
 				}
 				j.DownloadName = RelayStore.SafeName(link.Name);
 				j.DownloadExisting = Matches(j.DownloadName);

@@ -14,3 +14,7 @@ ChatGPT 一侧会识别 OpenAI 签名的桌面客户端：Codex 版和 ChatGPT �
 ```
 
 应用源码、XAML 界面和图标位于 `src/`。根目录的 `*Tests.cs` 和 `Verify.cs` 包含回归检查。`deploy.ps1` 用于更新当前 Windows 用户已安装的侧栏，并备份旧版本。
+
+## 后台交接
+
+后台进程的错误记录在 `%LOCALAPPDATA%\AI Switch Desk\background.log`（含完整堆栈，超过约 500 KB 时轮换为 `background.log.old`）。已完成或已取消的交接在闲置 30 天后连同文件副本自动清理；未完成和已暂停的交接不会被清理。
