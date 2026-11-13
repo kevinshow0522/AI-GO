@@ -1,0 +1,40 @@
+name: build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the sidebar
+        shell: powershell
+        run: .\build.ps1
+
+      - name: Compile the regression programs
+        shell: powershell
+        run: .\test.ps1 -SkipBuild -CompileOnly
+
+      # These drive real windows, so a hosted runner can fail them for reasons
+      # unrelated to the change. Their result is reported but does not gate.
+      - name: Run the regression programs (informational)
+        shell: powershell
+        continue-on-error: true
+        run: .\test.ps1 -SkipBuild -TimeoutSeconds 180 *>&1 | Tee-Object -FilePath build\test-log.txt
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: AISwitchDesk
+          path: |
+            build/AISwitchDesk.exe
+            build/test-log.txt
+          if-no-files-found: warn
