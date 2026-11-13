@@ -34,6 +34,8 @@ namespace AISwitchDesk
 
 		private string lastError;
 
+		private string lastAge;
+
 		private bool lastReading;
 
 		private int lastDpi;
@@ -140,10 +142,12 @@ namespace AISwitchDesk
 			PlanReport report = slot.Report;
 			Allowance allowance = slot.RingRow();
 			double? num = ((allowance == null) ? null : new double?(allowance.Remaining));
-			if (lastReport == report && lastError == slot.Error && lastReading == slot.Reading && lastTitle == title && lastDpi == dpi && lastAmount == num)
+			string age = slot.Stale ? slot.AgeText() : "";
+			if (lastReport == report && lastError == slot.Error && lastReading == slot.Reading && lastTitle == title && lastDpi == dpi && lastAmount == num && lastAge == age)
 			{
 				return;
 			}
+			lastAge = age;
 			lastReport = report;
 			lastTitle = title;
 			lastDpi = dpi;
@@ -168,9 +172,9 @@ namespace AISwitchDesk
 				{
 					foreach (Allowance item in report.Rows.Where((Allowance x) => x != null))
 					{
-						string text = (slot.Expired(item) ? "待刷新" : ("剩余 " + item.Remaining.ToString("0.#", CultureInfo.CurrentCulture) + "%"));
+						string text = slot.Amount(item, CultureInfo.CurrentCulture);
 						Line(item.Window + "    " + text, bodyFont, Ink, 3, 0);
-						Line(UsageSlot.ResetText(item), smallFont, Muted, 0, 6);
+						Line(slot.ResetLine(item), smallFont, Muted, 0, 6);
 					}
 				}
 				else

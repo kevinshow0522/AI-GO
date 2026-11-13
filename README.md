@@ -18,3 +18,7 @@ ChatGPT 一侧会识别 OpenAI 签名的桌面客户端：Codex 版和 ChatGPT �
 ## 后台交接
 
 后台进程的错误记录在 `%LOCALAPPDATA%\AI Switch Desk\background.log`（含完整堆栈，超过约 500 KB 时轮换为 `background.log.old`）。已完成或已取消的交接在闲置 30 天后连同文件副本自动清理；未完成和已暂停的交接不会被清理。
+
+## 套餐用量
+
+Claude 的额度只在你自己打开 Claude 的「设置 → 用量」页时读取，侧栏不会替你跳转页面。较早的读数会继续显示并标明读取时间；额度在重置前只减不增，所以旧读数是上限。

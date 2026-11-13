@@ -534,13 +534,13 @@ namespace AISwitchDesk
 					DockPanel dockPanel = new DockPanel();
 					dockPanel.Margin = new Thickness(0.0, 7.0, 0.0, 1.0);
 					DockPanel dockPanel2 = dockPanel;
-					TextBlock textBlock2 = Text(slot.Expired(item) ? "待刷新" : ("剩余 " + item.Remaining.ToString("0.#", CultureInfo.CurrentCulture) + "%"), 16.0, Ink, true);
+					TextBlock textBlock2 = Text(slot.Amount(item, CultureInfo.CurrentCulture), 16.0, Ink, true);
 					textBlock2.Margin = new Thickness(8.0, 0.0, 0.0, 0.0);
 					DockPanel.SetDock(textBlock2, Dock.Right);
 					dockPanel2.Children.Add(textBlock2);
 					StackPanel stackPanel = new StackPanel();
 					stackPanel.Children.Add(Text(item.Window, 13.0, Ink, false));
-					stackPanel.Children.Add(Text(UsageSlot.ResetText(item), 12.0, Muted, false));
+					stackPanel.Children.Add(Text(slot.ResetLine(item), 12.0, Muted, false));
 					dockPanel2.Children.Add(stackPanel);
 					card.Children.Add(dockPanel2);
 				}
