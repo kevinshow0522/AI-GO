@@ -5,6 +5,7 @@ Builds the sidebar and its regression programs, then runs them.
     .\test.ps1 -CompileOnly    stop after compiling
     .\test.ps1 -Only NativeDrop,Verify
     .\test.ps1 -SkipBuild      test the existing build\AISwitchDesk.exe
+    .\test.ps1 -FetchWebView2  download the WebView2 package the new-chat tests need
 
 The tests open real windows and drag real files. Leave the mouse and keyboard
 alone while they run.
@@ -18,6 +19,8 @@ param(
     [string[]]$Only,
     [switch]$SkipBuild,
     [switch]$CompileOnly,
+    [switch]$FetchWebView2,
+    [string]$WebView2Version = '1.0.2903.40',
     [int]$TimeoutSeconds = 240
 )
 $ErrorActionPreference = 'Stop'
@@ -34,6 +37,18 @@ $references = @('System.dll','System.Core.dll','System.Drawing.dll','System.Wind
 $references += @('PresentationFramework.dll','PresentationCore.dll','WindowsBase.dll','WindowsFormsIntegration.dll','UIAutomationClient.dll','UIAutomationTypes.dll','UIAutomationProvider.dll') |
     ForEach-Object { '/r:' + (Join-Path (Join-Path $frameworkDir 'WPF') $_) }
 
+if ($FetchWebView2) {
+    $WebView2 = Join-Path $PSScriptRoot "build\packages\microsoft.web.webview2.$WebView2Version"
+    if (!(Test-Path -LiteralPath $WebView2)) {
+        $archive = "$WebView2.zip"
+        New-Item -ItemType Directory -Force -Path (Split-Path -Parent $WebView2) | Out-Null
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        Invoke-WebRequest -UseBasicParsing -OutFile $archive -Uri "https://api.nuget.org/v3-flatcontainer/microsoft.web.webview2/$WebView2Version/microsoft.web.webview2.$WebView2Version.nupkg"
+        Expand-Archive -LiteralPath $archive -DestinationPath $WebView2
+        Remove-Item -LiteralPath $archive
+    }
+}
+
 function Find-WebView2([string]$name, [string]$hint) {
     if (!(Test-Path -LiteralPath $WebView2)) { return $null }
     $found = Get-ChildItem -LiteralPath $WebView2 -Recurse -Filter $name -File -ErrorAction SilentlyContinue |
@@ -49,8 +64,9 @@ $tests = @(
     @{ Name = 'NativeDropTests';    Sources = @('NativeDropTests.cs');                       Runs = @(,@('{app}')) },
     @{ Name = 'BrowserDropTests';   Sources = @('BrowserDropTests.cs');                      Runs = @(,@('{app}')) },
     @{ Name = 'ChromiumAttachmentTests'; Sources = @('ChromiumAttachmentTests.cs');          Runs = @(@('{app}'), @('{app}','--background')) },
-    @{ Name = 'CompareButtonTests'; Sources = @('CompareButtonTests.cs','DualUploadTests.cs'); Runs = @(@('{app}'), @('{app}','--files')) },
-    @{ Name = 'NewChatDropTests';   Sources = @('NewChatDropTests.cs');                      Runs = @(@('{app}','ChatGPT'), @('{app}','Claude')); NeedsWebView2 = $true }
+    @{ Name = 'NewChatDropTests';   Sources = @('NewChatDropTests.cs');                      Runs = @(@('{app}','ChatGPT'), @('{app}','Claude')); NeedsWebView2 = $true },
+    # The --files run drives the NewChatDropTests fixture window.
+    @{ Name = 'CompareButtonTests'; Sources = @('CompareButtonTests.cs','DualUploadTests.cs'); Runs = @(@('{app}'), @('{app}','--files')); FilesNeeds = 'NewChatDropTests.exe' }
 )
 if ($Only) { $tests = @($tests | Where-Object { $name = $_.Name; $Only | Where-Object { $name -like "*$_*" } }) }
 
@@ -110,6 +126,10 @@ foreach ($test in $tests) {
     foreach ($run in $test.Runs) {
         $arguments = @($run | ForEach-Object { $_.Replace('{app}', $App).Replace('{baseline}', $Baseline) })
         $label = $test.Name + (' ' + (($run | Where-Object { $_ -notlike '{*}' }) -join ' ')).TrimEnd()
+        if ($test.FilesNeeds -and ($run -contains '--files') -and !(Test-Path -LiteralPath (Join-Path $outDir $test.FilesNeeds))) {
+            Add-Result $label 'SKIP' "needs $($test.FilesNeeds), which needs the WebView2 package (-FetchWebView2)"
+            continue
+        }
         $outcome = Invoke-Test $exe $arguments
         $lines = @($outcome.Text -split "`r?`n" | Where-Object { $_ })
         $last = if ($lines.Count) { $lines[-1] } else { '' }

@@ -21,14 +21,30 @@ jobs:
 
       - name: Compile the regression programs
         shell: powershell
-        run: .\test.ps1 -SkipBuild -CompileOnly
+        run: .\test.ps1 -SkipBuild -CompileOnly -FetchWebView2
+
+      # The default branch is the reference: Verify compares against it, and
+      # running the same tests on it shows whether a failure is new.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: baseline-src
+
+      - name: Build the reference sidebar
+        shell: powershell
+        run: .\baseline-src\build.ps1 -OutputPath (Join-Path $PWD 'build\baseline\AISwitchDesk.exe')
 
       # These drive real windows, so a hosted runner can fail them for reasons
       # unrelated to the change. Their result is reported but does not gate.
       - name: Run the regression programs (informational)
         shell: powershell
         continue-on-error: true
-        run: .\test.ps1 -SkipBuild -TimeoutSeconds 180 *>&1 | Tee-Object -FilePath build\test-log.txt
+        run: .\test.ps1 -SkipBuild -FetchWebView2 -Baseline build\baseline\AISwitchDesk.exe -TimeoutSeconds 180 *>&1 | Tee-Object -FilePath build\test-log.txt
+
+      - name: Run the same programs on the reference (informational)
+        shell: powershell
+        continue-on-error: true
+        run: .\test.ps1 -SkipBuild -FetchWebView2 -App build\baseline\AISwitchDesk.exe -Baseline build\baseline\AISwitchDesk.exe -TimeoutSeconds 180 *>&1 | Tee-Object -FilePath build\test-log-reference.txt
 
       - uses: actions/upload-artifact@v4
         if: always()
@@ -37,4 +53,5 @@ jobs:
           path: |
             build/AISwitchDesk.exe
             build/test-log.txt
+            build/test-log-reference.txt
           if-no-files-found: warn
