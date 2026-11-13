@@ -63,14 +63,14 @@ namespace AISwitchDesk
 				select s).Distinct().ToArray();
 			if (job.SourceRoute == null || (command == "pair" && array.Length != 1))
 			{
-				job.Stage = "pair-missing";
+				job.Stage = Stages.PairMissing;
 				job.Detail = "请打开要配对的 GPT 对话和一个已有的 Claude 对话，再发送配对指令。";
 			}
 			else
 			{
 				string text = ((command == "pair") ? array[0] : null);
 				Set(job.SourceRoute, text, true);
-				job.Stage = ((text != null) ? "paired" : "unpaired");
+				job.Stage = ((text != null) ? Stages.Paired : Stages.Unpaired);
 				job.ClaudeRoute = text;
 				job.Detail = ((text != null) ? "之后从这条 GPT 对话交出的文件将送到选定的 Claude 对话。" : "之后的新交接会重新配对。");
 			}

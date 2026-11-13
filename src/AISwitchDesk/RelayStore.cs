@@ -89,6 +89,11 @@ namespace AISwitchDesk
 					{
 						if (!File.Exists(text) || !WaitForFileChange(error, attempt)) throw;
 					}
+					catch (UnauthorizedAccessException error)
+					{
+						// Windows reports a file briefly held by a scanner as access denied.
+						if (!File.Exists(text) || !WaitForFileChange(error, attempt)) throw;
+					}
 				}
 			}
 			finally
@@ -100,7 +105,7 @@ namespace AISwitchDesk
 			}
 		}
 
-		private static bool WaitForFileChange(IOException error, int attempt)
+		private static bool WaitForFileChange(Exception error, int attempt)
 		{
 			// Windows readers and file scanners can temporarily deny rename/delete.
 			int code = error.HResult & 0xffff;
@@ -132,7 +137,7 @@ namespace AISwitchDesk
 			handoff.Name = SafeName(name);
 			handoff.Instruction = instruction.Trim();
 			handoff.Task = task;
-			handoff.Stage = initialStage ?? ((origin != null) ? "capture" : (flag ? "ask" : "ready"));
+			handoff.Stage = initialStage ?? ((origin != null) ? Stages.Capture : (flag ? Stages.Ask : Stages.Ready));
 			handoff.NewChat = newChat;
 			handoff.Background = background;
 			handoff.Origin = origin;
@@ -251,7 +256,7 @@ namespace AISwitchDesk
 
 		private static bool Finished(Handoff job)
 		{
-			return job.Stage == "done" || job.Stage == "cancel";
+			return Stages.Finished(job.Stage);
 		}
 
 		// Removes finished handoffs, and their file copies, once they have been

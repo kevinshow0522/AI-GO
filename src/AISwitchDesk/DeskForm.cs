@@ -952,9 +952,6 @@ namespace AISwitchDesk
 			client.LaunchDeadline = DateTime.UtcNow.AddSeconds(30.0);
 			try
 			{
-				int num = default(int);
-				int num2 = num;
-				int num3 = 0;
 				try
 				{
 					client.Starting = Task.Run((Action)client.Launch);

@@ -107,7 +107,7 @@ namespace AISwitchDesk
 
 		internal void Poll(IntPtr handle, List<Handoff> jobs)
 		{
-			Handoff[] array = jobs.Where((Handoff j) => j.Stage == "capture" && !j.Held && j.DownloadStarted > 0 && j.OriginWindow == handle.ToInt64()).ToArray();
+			Handoff[] array = jobs.Where((Handoff j) => j.Stage == Stages.Capture && !j.Held && j.DownloadStarted > 0 && j.OriginWindow == handle.ToInt64()).ToArray();
 			foreach (Handoff j2 in array)
 			{
 				try
@@ -164,7 +164,7 @@ namespace AISwitchDesk
 							string proof;
 							text2 = ConversationRoute.LocalSession(last.Prompt, null, null, out proof);
 						}
-						Handoff handoff = RelayStore.Create("ChatGPT", (relayIntent == null) ? "对话配对" : (relayIntent.Name ?? "交接.md"), (relayIntent == null) ? text : relayIntent.Instruction, last.Prompt, null, null, null, true, true, last.Key, handle.ToInt64(), last.ElementId, view.Page, true, relayIntent != null && RoundTrips.Requested(last.Prompt), text2, sourceProof, null, (relayIntent == null) ? "pair-missing" : null);
+						Handoff handoff = RelayStore.Create("ChatGPT", (relayIntent == null) ? "对话配对" : (relayIntent.Name ?? "交接.md"), (relayIntent == null) ? text : relayIntent.Instruction, last.Prompt, null, null, null, true, true, last.Key, handle.ToInt64(), last.ElementId, view.Page, true, relayIntent != null && RoundTrips.Requested(last.Prompt), text2, sourceProof, null, (relayIntent == null) ? Stages.PairMissing : null);
 						if (text != null)
 						{
 							ConversationPairs.ApplyCommand(handoff, text);
@@ -188,7 +188,7 @@ namespace AISwitchDesk
 					state.SawDraft = DateTime.UtcNow;
 				}
 			}
-			Handoff[] array2 = jobs.Where((Handoff x) => x.Stage == "capture" && !x.Held && x.DownloadStarted == 0).ToArray();
+			Handoff[] array2 = jobs.Where((Handoff x) => x.Stage == Stages.Capture && !x.Held && x.DownloadStarted == 0).ToArray();
 			foreach (Handoff i in array2)
 			{
 				List<GptTurn> turns = view.Turns;
@@ -214,7 +214,7 @@ namespace AISwitchDesk
 				{
 					BackgroundRelay.Hold(i, ex5.Message);
 				}
-				if (i.Stage != "capture")
+				if (i.Stage != Stages.Capture)
 				{
 					stable.Remove(i.Id);
 				}
@@ -302,7 +302,7 @@ namespace AISwitchDesk
 				if (array.Length == 1)
 				{
 					Handoff handoff = array[0];
-					if (j.SourceRoute != null && handoff.Stage != "done" && handoff.Stage != "cancel" && (handoff.SourceRoute == null || handoff.SourceProof == null))
+					if (j.SourceRoute != null && handoff.Stage != Stages.Done && handoff.Stage != Stages.Cancel && (handoff.SourceRoute == null || handoff.SourceProof == null))
 					{
 						handoff.SourceRoute = j.SourceRoute;
 						handoff.SourceProof = j.SourceProof;
@@ -311,7 +311,7 @@ namespace AISwitchDesk
 						RelayStore.Save(handoff);
 					}
 					j.LinkedId = handoff.Id;
-					j.Stage = "linked";
+					j.Stage = Stages.Linked;
 					j.Detail = "已由 GPT 提交，跟随同一份文件的接力进度。";
 					RelayStore.Save(j);
 					return;

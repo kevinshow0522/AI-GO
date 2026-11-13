@@ -39,9 +39,6 @@ namespace AISwitchDesk
 			observing = true;
 			try
 			{
-				int num = default(int);
-				int num2 = num;
-				int num3 = 0;
 				try
 				{
 					PlanReport report = await Task.Run(() => PlanUsage.OpenClaudeUsage(window));
@@ -91,9 +88,6 @@ namespace AISwitchDesk
 			Notify();
 			try
 			{
-				int num = default(int);
-				int num2 = num;
-				int num3 = 0;
 				try
 				{
 					Report = await Task.Run(read);

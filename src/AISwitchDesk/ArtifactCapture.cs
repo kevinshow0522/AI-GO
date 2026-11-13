@@ -81,7 +81,7 @@ namespace AISwitchDesk
 			{
 				throw new IOException("无法确认附件的文件名和类型。");
 			}
-			if (j.Stage == "await-result")
+			if (j.Stage == Stages.AwaitResult)
 			{
 				using (Stream input = ((source != null) ? ((Stream)File.OpenRead(source)) : ((Stream)new MemoryStream(RelayStore.Utf8.GetBytes(text)))))
 				{
@@ -126,7 +126,7 @@ namespace AISwitchDesk
 				RelayStore.AtomicText(text3, text);
 			}
 			j.Name = name;
-			j.Stage = "ready";
+			j.Stage = Stages.Ready;
 			j.Detail = "已取得 GPT 文件，正在投递到 Claude。";
 			RelayStore.Save(j);
 		}
@@ -167,11 +167,11 @@ namespace AISwitchDesk
 				j.DownloadName = RelayStore.SafeName(link.Name);
 				j.DownloadExisting = Matches(j.DownloadName);
 				j.DownloadStarted = DateTime.UtcNow.Ticks;
-				j.Detail = ((j.Stage == "await-result") ? "正在下载 Claude 的修改稿。" : "正在从 GPT 下载这份附件。");
+				j.Detail = ((j.Stage == Stages.AwaitResult) ? "正在下载 Claude 的修改稿。" : "正在从 GPT 下载这份附件。");
 				RelayStore.Save(j);
 				Invoke(link.Element);
 			}
-			string text = Path.Combine(RelayStore.Folder(j.Id), (j.Stage == "await-result") ? "result-download" : "download");
+			string text = Path.Combine(RelayStore.Folder(j.Id), (j.Stage == Stages.AwaitResult) ? "result-download" : "download");
 			Directory.CreateDirectory(text);
 			string text2 = Path.Combine(text, j.DownloadName);
 			if (Regular(text2))

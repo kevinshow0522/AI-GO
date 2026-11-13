@@ -67,11 +67,11 @@ namespace AISwitchDesk
             {
                 if (job.LinkedId != null || (job.To != "ChatGPT" && job.To != "Claude")) continue;
                 int to = job.To == "ChatGPT" ? 0 : 1;
-                bool outbound = job.Stage == "await-result" || (job.Stage == "done" && !job.RoundTrip);
+                bool outbound = job.Stage == Stages.AwaitResult || (job.Stage == Stages.Done && !job.RoundTrip);
                 if (outbound) ObserveReceipt(job, ":out", to);
-                if (job.Stage == "done" && job.RoundTrip) ObserveReceipt(job, ":back", 1 - to);
+                if (job.Stage == Stages.Done && job.RoundTrip) ObserveReceipt(job, ":back", 1 - to);
                 if (nextTarget < 0 && !job.Held &&
-                    (job.Stage == "ready" || job.Stage == "confirm" || job.Returning))
+                    (job.Stage == Stages.Ready || job.Stage == Stages.Confirm || job.Returning))
                     nextTarget = job.Returning ? 1 - to : to;
             }
             relayTarget = nextTarget;

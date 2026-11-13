@@ -127,7 +127,7 @@ namespace AISwitchDesk
 			try
 			{
 				Handoff handoff = RelayStore.Load(j.Id);
-				if (!(handoff.Stage == "done") && !(handoff.Stage == "cancel") && handoff.Revision == j.Revision)
+				if (!(handoff.Stage == Stages.Done) && !(handoff.Stage == Stages.Cancel) && handoff.Revision == j.Revision)
 				{
 					handoff.Held = true;
 					handoff.Detail = reason;
@@ -348,15 +348,15 @@ namespace AISwitchDesk
 					{
 					}
 					job = (from x in RelayStore.All()
-						where (x.Background || x.Task == null) && !x.Held && (x.Stage == "ready" || x.Stage == "confirm" || x.Stage == "linked" || x.Stage == "await-result" || x.Returning) && (!defer.ContainsKey(x.Id) || defer[x.Id] <= DateTime.UtcNow)
+						where (x.Background || x.Task == null) && !x.Held && (x.Stage == Stages.Ready || x.Stage == Stages.Confirm || x.Stage == Stages.Linked || x.Stage == Stages.AwaitResult || x.Returning) && (!defer.ContainsKey(x.Id) || defer[x.Id] <= DateTime.UtcNow)
 						orderby x.Created
 						select x).FirstOrDefault();
 					if (job != null)
 					{
-						if (job.Stage == "linked")
+						if (job.Stage == Stages.Linked)
 						{
 							Handoff handoff = RelayStore.Load(job.LinkedId);
-							if (handoff.Stage == "done" || handoff.Stage == "cancel")
+							if (handoff.Stage == Stages.Done || handoff.Stage == Stages.Cancel)
 							{
 								job.Stage = handoff.Stage;
 								job.Detail = handoff.Detail;
@@ -385,7 +385,7 @@ namespace AISwitchDesk
 							RelayPump.Returned(job);
 							continue;
 						}
-						if (!job.PairChats && !job.FromFolder && job.From == "ChatGPT" && job.Stage == "ready" && job.Task == null && job.Created >= result)
+						if (!job.PairChats && !job.FromFolder && job.From == "ChatGPT" && job.Stage == Stages.Ready && job.Task == null && job.Created >= result)
 						{
 							job.PairChats = true;
 							job.RoundTrip = RoundTrips.Requested(job.Instruction);
@@ -415,7 +415,7 @@ namespace AISwitchDesk
 							{
 								DeliverTo(job, views, navigation);
 							});
-							defer[job.Id] = DateTime.UtcNow.AddSeconds((!(job.Stage == "await-result")) ? 1 : 5);
+							defer[job.Id] = DateTime.UtcNow.AddSeconds((!(job.Stage == Stages.AwaitResult)) ? 1 : 5);
 						}
 					}
 				}
@@ -429,7 +429,7 @@ namespace AISwitchDesk
 						try
 						{
 							string message = ex3.GetBaseException().Message;
-							if (ex3 is ConversationPending || (job.Stage != "confirm" && job.Stage != "return-confirm" && (Retry.IsLater(ex3) || ex3 is ElementNotAvailableException || ex3 is COMException || !Enabled)))
+							if (ex3 is ConversationPending || (job.Stage != Stages.Confirm && job.Stage != Stages.ReturnConfirm && (Retry.IsLater(ex3) || ex3 is ElementNotAvailableException || ex3 is COMException || !Enabled)))
 							{
 								Handoff handoff2 = RelayStore.Load(job.Id);
 								if (handoff2.Revision == job.Revision && handoff2.Detail != message)
@@ -486,7 +486,7 @@ namespace AISwitchDesk
 				chatUi.ExpectedRoute = route;
 				chatUi.ExpectedProof = job.SourceProof;
 			}
-			else if (job.Stage == "confirm")
+			else if (job.Stage == Stages.Confirm)
 			{
 				chatUi = views.FirstOrDefault((ChatUi v) => v.TranscriptContains(job.Receipt)) ?? chatUi;
 			}
@@ -510,7 +510,7 @@ namespace AISwitchDesk
 					throw new ConversationPending("正在核对发起任务的 GPT 对话。打开原对话后，后台会继续。");
 				}
 			}
-			if (job.Stage == "ready" && job.SourceRoute != null && job.ClaudeRoute == null)
+			if (job.Stage == Stages.Ready && job.SourceRoute != null && job.ClaudeRoute == null)
 			{
 				if (job.PairSnapshot == null)
 				{
@@ -523,7 +523,7 @@ namespace AISwitchDesk
 					job.ClaudeRoute = text2;
 					RelayStore.Save(job);
 				}
-				else if (RelayStore.All().Any((Handoff x) => x.Id != job.Id && x.Created < job.Created && x.PairChats && x.SourceRoute != null && x.ClaudeRoute == null && !x.Held && (x.Stage == "ready" || x.Stage == "confirm")))
+				else if (RelayStore.All().Any((Handoff x) => x.Id != job.Id && x.Created < job.Created && x.PairChats && x.SourceRoute != null && x.ClaudeRoute == null && !x.Held && (x.Stage == Stages.Ready || x.Stage == Stages.Confirm)))
 				{
 					throw new ConversationPending("正在等待前一条交接确定 Claude 对话。");
 				}

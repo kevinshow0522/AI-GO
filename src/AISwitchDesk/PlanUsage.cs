@@ -300,31 +300,5 @@ namespace AISwitchDesk
 			}
 			return planReport2;
 		}
-
-		internal static string Describe(PlanReport report)
-		{
-			if (report == null)
-			{
-				return "尚未读取。";
-			}
-			if (report.Rows == null || report.Rows.Count == 0)
-			{
-				return report.Note ?? "官方尚未提供数据。";
-			}
-			return string.Join("\r\n", report.Rows.Select(delegate(Allowance w)
-			{
-				string text = w.Reset;
-				if (w.ResetEpoch > 0)
-				{
-					DateTimeOffset dateTimeOffset = DateTimeOffset.FromUnixTimeSeconds(w.ResetEpoch).ToLocalTime();
-					if (dateTimeOffset <= DateTimeOffset.Now)
-					{
-						return w.Window + "  ·  已到重置时间，请刷新";
-					}
-					text = dateTimeOffset.ToString("MM-dd HH:mm") + " 重置";
-				}
-				return w.Window + "  ·  剩余 " + w.Remaining.ToString("0.#") + "%  ·  " + (string.IsNullOrEmpty(text) ? "官方未提供重置时间" : text);
-			}));
-		}
 	}
 }
