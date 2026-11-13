@@ -12,10 +12,6 @@ namespace AISwitchDesk
 	{
 		internal readonly string Name;
 
-		internal readonly string AppId;
-
-		private readonly string family;
-
 		private IntPtr lastWindow;
 
 		private uint lastProcess;
@@ -30,16 +26,14 @@ namespace AISwitchDesk
 
 		internal DateTime LaunchDeadline;
 
-		internal ClientWindow(string name, string familyName, string entry)
+		internal ClientWindow(string name)
 		{
 			Name = name;
-			family = familyName;
-			AppId = familyName + "!" + entry;
 		}
 
 		internal void Quit(bool launchPending)
 		{
-			using (ClientProcesses clientProcesses = new ClientProcesses(Name, family))
+			using (ClientProcesses clientProcesses = new ClientProcesses(Name))
 			{
 				clientProcesses.Quit(launchPending);
 			}
@@ -47,9 +41,13 @@ namespace AISwitchDesk
 
 		internal void Launch()
 		{
-			string text = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Microsoft", "WindowsApps", (Name == "Claude") ? "claude-desktop.exe" : "chatgpt-desktop.exe");
-			if (File.Exists(text))
+			foreach (string alias in ClientApps.Aliases(Name))
 			{
+				string text = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Microsoft", "WindowsApps", alias);
+				if (!File.Exists(text))
+				{
+					continue;
+				}
 				try
 				{
 					ProcessStartInfo processStartInfo = new ProcessStartInfo(text);
@@ -76,7 +74,7 @@ namespace AISwitchDesk
 				{
 				}
 			}
-			ProcessStartInfo processStartInfo3 = new ProcessStartInfo(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe"), "shell:AppsFolder\\" + AppId);
+			ProcessStartInfo processStartInfo3 = new ProcessStartInfo(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe"), "shell:AppsFolder\\" + ClientApps.AppId(Name));
 			processStartInfo3.UseShellExecute = true;
 			using (Process.Start(processStartInfo3))
 			{
@@ -110,7 +108,7 @@ namespace AISwitchDesk
 				}
 				uint pid;
 				Native.GetWindowThreadProcessId(window, out pid);
-				if (!string.Equals(Native.PackageOf(pid), family, StringComparison.OrdinalIgnoreCase))
+				if (!ClientApps.OwnsProcess(Name, pid))
 				{
 					return true;
 				}
@@ -207,7 +205,7 @@ namespace AISwitchDesk
 			}
 			uint pid;
 			Native.GetWindowThreadProcessId(window, out pid);
-			if (!string.Equals(Native.PackageOf(pid), family, StringComparison.OrdinalIgnoreCase))
+			if (!ClientApps.OwnsProcess(Name, pid))
 			{
 				return false;
 			}

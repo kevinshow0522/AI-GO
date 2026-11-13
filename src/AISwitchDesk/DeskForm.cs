@@ -29,8 +29,8 @@ namespace AISwitchDesk
 
 		private readonly ClientWindow[] clients = new ClientWindow[2]
 		{
-			new ClientWindow("ChatGPT", "OpenAI.Codex_2p2nqsd0c76g0", "App"),
-			new ClientWindow("Claude", "Claude_pzs8sxrjxfjjc", "Claude")
+			new ClientWindow("ChatGPT"),
+			new ClientWindow("Claude")
 		};
 
 		private readonly UsageSlot[] usage = new UsageSlot[2]
@@ -1372,7 +1372,7 @@ namespace AISwitchDesk
 				PlanReport result = null;
 				if (!ClientInput.TryUse("Claude", delegate
 				{
-					result = PlanUsage.Claude(target, () => new ClientWindow("Claude", "Claude_pzs8sxrjxfjjc", "Claude").FindMainWindow());
+					result = PlanUsage.Claude(target, () => new ClientWindow("Claude").FindMainWindow());
 				}))
 				{
 					throw new IOException("Claude 正在处理附件，请稍后刷新。");

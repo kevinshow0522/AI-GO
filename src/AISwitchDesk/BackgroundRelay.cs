@@ -74,21 +74,12 @@ namespace AISwitchDesk
 			}
 		}
 
-		private static string Family(string app)
-		{
-			if (!(app == "Claude"))
-			{
-				return "OpenAI.Codex_2p2nqsd0c76g0";
-			}
-			return "Claude_pzs8sxrjxfjjc";
-		}
-
 		internal static bool IsClient(IntPtr window, string app)
 		{
 			uint pid;
 			if (Native.IsWindow(window) && Native.GetWindowThreadProcessId(window, out pid) != 0)
 			{
-				return string.Equals(Native.PackageOf(pid), Family(app), StringComparison.OrdinalIgnoreCase);
+				return ClientApps.OwnsProcess(app, pid);
 			}
 			return false;
 		}
@@ -339,7 +330,7 @@ namespace AISwitchDesk
 							if (!dictionary.TryGetValue(app, out value) || value <= DateTime.UtcNow)
 							{
 								dictionary[app] = DateTime.UtcNow.AddMinutes(1.0);
-								new ClientWindow(app, Family(app), (app == "Claude") ? "Claude" : "App").Launch();
+								new ClientWindow(app).Launch();
 							}
 							defer[job.Id] = DateTime.UtcNow.AddSeconds(3.0);
 						}
