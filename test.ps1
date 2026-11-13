@@ -49,11 +49,13 @@ if ($FetchWebView2) {
     }
 }
 
-function Find-WebView2([string]$name, [string]$hint) {
+# The package holds several builds of each file. $under picks the folder for
+# .NET Framework (managed) or 64-bit Windows (native loader).
+function Find-WebView2([string]$name, [string]$under) {
     if (!(Test-Path -LiteralPath $WebView2)) { return $null }
-    $found = Get-ChildItem -LiteralPath $WebView2 -Recurse -Filter $name -File -ErrorAction SilentlyContinue |
-        Sort-Object @{ Expression = { $_.FullName -like "*$hint*" }; Descending = $true }, @{ Expression = { $_.FullName }; Descending = $true }
-    if ($found) { return @($found)[0].FullName }
+    $found = @(Get-ChildItem -LiteralPath $WebView2 -Recurse -Filter $name -File -ErrorAction SilentlyContinue |
+        Where-Object { $_.FullName -match $under } | Sort-Object FullName -Descending)
+    if ($found.Count) { return $found[0].FullName }
     return $null
 }
 
@@ -101,15 +103,15 @@ foreach ($test in $tests) {
     $exe = Join-Path $outDir ($test.Name + '.exe')
     $extra = @()
     if ($test.NeedsWebView2) {
-        $core = Find-WebView2 'Microsoft.Web.WebView2.Core.dll' 'net45'
-        $forms = Find-WebView2 'Microsoft.Web.WebView2.WinForms.dll' 'net45'
-        $loader = Find-WebView2 'WebView2Loader.dll' 'win-x64'
+        $core = Find-WebView2 'Microsoft.Web.WebView2.Core.dll' '\\lib\\net4[^\\]*\\'
+        $forms = Find-WebView2 'Microsoft.Web.WebView2.WinForms.dll' '\\lib\\net4[^\\]*\\'
+        $loader = Find-WebView2 'WebView2Loader.dll' '\\runtimes\\win-x64\\native\\'
         if (!$core -or !$forms -or !$loader) {
             Add-Result $test.Name 'SKIP' 'WebView2 package not found; pass -WebView2 <folder of Microsoft.Web.WebView2>'
             continue
         }
         Copy-Item -LiteralPath $core, $forms, $loader -Destination $outDir -Force
-        $extra = @('/r:' + $core, '/r:' + $forms)
+        $extra = @(('/r:' + $core), ('/r:' + $forms))
     }
     $sources = @($test.Sources | ForEach-Object { Join-Path $PSScriptRoot $_ })
     $log = & (Join-Path $frameworkDir 'csc.exe') /nologo /target:exe /platform:x64 /optimize+ /unsafe+ ('/out:' + $exe) @references @extra @sources 2>&1
