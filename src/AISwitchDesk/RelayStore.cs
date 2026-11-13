@@ -89,6 +89,11 @@ namespace AISwitchDesk
 					{
 						if (!File.Exists(text) || !WaitForFileChange(error, attempt)) throw;
 					}
+					catch (UnauthorizedAccessException error)
+					{
+						// Windows reports a file briefly held by a scanner as access denied.
+						if (!File.Exists(text) || !WaitForFileChange(error, attempt)) throw;
+					}
 				}
 			}
 			finally
@@ -100,7 +105,7 @@ namespace AISwitchDesk
 			}
 		}
 
-		private static bool WaitForFileChange(IOException error, int attempt)
+		private static bool WaitForFileChange(Exception error, int attempt)
 		{
 			// Windows readers and file scanners can temporarily deny rename/delete.
 			int code = error.HResult & 0xffff;
@@ -132,7 +137,7 @@ namespace AISwitchDesk
 			handoff.Name = SafeName(name);
 			handoff.Instruction = instruction.Trim();
 			handoff.Task = task;
-			handoff.Stage = initialStage ?? ((origin != null) ? "capture" : (flag ? "ask" : "ready"));
+			handoff.Stage = initialStage ?? ((origin != null) ? Stages.Capture : (flag ? Stages.Ask : Stages.Ready));
 			handoff.NewChat = newChat;
 			handoff.Background = background;
 			handoff.Origin = origin;
@@ -247,6 +252,96 @@ namespace AISwitchDesk
 				}
 			}
 			return list.OrderByDescending((Handoff x) => x.Created).ToList();
+		}
+
+		private static bool Finished(Handoff job)
+		{
+			return Stages.Finished(job.Stage);
+		}
+
+		// Removes finished handoffs, and their file copies, once they have been
+		// idle for the given time. Unfinished and paused handoffs are never removed.
+		internal static int Prune(TimeSpan keep)
+		{
+			if (!Directory.Exists(Jobs))
+			{
+				return 0;
+			}
+			long cutoff = DateTime.UtcNow.Ticks - keep.Ticks;
+			List<Handoff> all = All();
+			HashSet<string> linked = new HashSet<string>(from x in all
+				where x.LinkedId != null && !Finished(x)
+				select x.LinkedId);
+			int removed = 0;
+			foreach (Handoff job in all)
+			{
+				if (!Finished(job) || Math.Max(job.Created, job.Updated) > cutoff || linked.Contains(job.Id))
+				{
+					continue;
+				}
+				using (Mutex mutex = new Mutex(false, "Local\\AISwitchDesk.Relay." + job.Id))
+				{
+					bool locked = false;
+					try
+					{
+						try
+						{
+							locked = mutex.WaitOne(0);
+						}
+						catch (AbandonedMutexException)
+						{
+							locked = true;
+						}
+						if (!locked)
+						{
+							continue;
+						}
+						Handoff current = Load(job.Id);
+						if (current.Revision == job.Revision && Finished(current))
+						{
+							Directory.Delete(Folder(job.Id), true);
+							removed++;
+						}
+					}
+					catch (IOException)
+					{
+					}
+					catch (UnauthorizedAccessException)
+					{
+					}
+					catch (ArgumentException)
+					{
+					}
+					catch (InvalidOperationException)
+					{
+					}
+					finally
+					{
+						if (locked)
+						{
+							mutex.ReleaseMutex();
+						}
+					}
+				}
+			}
+			// Staging folders left behind by an interrupted create.
+			foreach (string folder in Directory.GetDirectories(Jobs, ".new-*"))
+			{
+				try
+				{
+					if (Directory.GetLastWriteTimeUtc(folder) < DateTime.UtcNow.AddDays(-1.0))
+					{
+						Directory.Delete(folder, true);
+					}
+				}
+				catch (IOException)
+				{
+				}
+				catch (UnauthorizedAccessException)
+				{
+				}
+			}
+			return removed;
 		}
 
 		internal static void Save(Handoff job)

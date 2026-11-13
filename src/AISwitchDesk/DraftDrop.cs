@@ -164,7 +164,7 @@ namespace AISwitchDesk
 				ui.DraftEditorId = draft.editorId;
 				ui.DraftEditorBox = draft.editorBox;
 				ui.CheckDraftTarget = draft.Verify;
-				if (RelayStore.All().Any(j => (j.Stage == "ready" || j.Stage == "confirm" || j.Returning) &&
+				if (RelayStore.All().Any(j => (j.Stage == Stages.Ready || j.Stage == Stages.Confirm || j.Returning) &&
 					(j.Returning ? "ChatGPT" : j.To) == app && j.UploadStarted && j.SendingName != null && ui.HasFile(j.SendingName)))
 					throw new InvalidOperationException("输入框中有正在交接的附件，请完成交接后再重试。");
 

@@ -22,18 +22,15 @@ namespace AISwitchDesk
 
 		private readonly string name;
 
-		private readonly string family;
-
 		private readonly int session;
 
 		private readonly Dictionary<int, Process> owned = new Dictionary<int, Process>();
 
 		private readonly HashSet<string> folders = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-		internal ClientProcesses(string name, string family)
+		internal ClientProcesses(string name)
 		{
 			this.name = name;
-			this.family = family;
 			using (Process process = Process.GetCurrentProcess())
 			{
 				session = process.SessionId;
@@ -46,7 +43,7 @@ namespace AISwitchDesk
 			}
 			else if (name == "Claude")
 			{
-				AddFolder(Path.Combine(folderPath, "Claude-Data", family));
+				AddFolder(Path.Combine(folderPath, "Claude-Data", ClientApps.ClaudeFamily));
 			}
 		}
 
@@ -117,7 +114,7 @@ namespace AISwitchDesk
 			}
 			foreach (Row item2 in list)
 			{
-				if (string.Equals(Path.GetFileNameWithoutExtension(item2.Image), name, StringComparison.OrdinalIgnoreCase) && string.Equals(Native.PackageOf((uint)item2.Id), family, StringComparison.OrdinalIgnoreCase) && Add(item2, null))
+				if (string.Equals(Path.GetFileNameWithoutExtension(item2.Image), name, StringComparison.OrdinalIgnoreCase) && ClientApps.OwnsProcess(name, (uint)item2.Id) && Add(item2, null))
 				{
 					AddFolder(Path.GetDirectoryName(item2.Image));
 				}

@@ -78,7 +78,7 @@ namespace AISwitchDesk
 
 		internal static bool LocalReceipt(Handoff job)
 		{
-			if (job.Stage != "return-confirm" || job.SourceRoute == null || !job.SourceRoute.StartsWith("codex://threads/") || job.ReturnName == null)
+			if (job.Stage != Stages.ReturnConfirm || job.SourceRoute == null || !job.SourceRoute.StartsWith("codex://threads/") || job.ReturnName == null)
 			{
 				return false;
 			}

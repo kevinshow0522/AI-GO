@@ -534,13 +534,13 @@ namespace AISwitchDesk
 					DockPanel dockPanel = new DockPanel();
 					dockPanel.Margin = new Thickness(0.0, 7.0, 0.0, 1.0);
 					DockPanel dockPanel2 = dockPanel;
-					TextBlock textBlock2 = Text(slot.Expired(item) ? "待刷新" : ("剩余 " + item.Remaining.ToString("0.#", CultureInfo.CurrentCulture) + "%"), 16.0, Ink, true);
+					TextBlock textBlock2 = Text(slot.Amount(item, CultureInfo.CurrentCulture), 16.0, Ink, true);
 					textBlock2.Margin = new Thickness(8.0, 0.0, 0.0, 0.0);
 					DockPanel.SetDock(textBlock2, Dock.Right);
 					dockPanel2.Children.Add(textBlock2);
 					StackPanel stackPanel = new StackPanel();
 					stackPanel.Children.Add(Text(item.Window, 13.0, Ink, false));
-					stackPanel.Children.Add(Text(UsageSlot.ResetText(item), 12.0, Muted, false));
+					stackPanel.Children.Add(Text(slot.ResetLine(item), 12.0, Muted, false));
 					dockPanel2.Children.Add(stackPanel);
 					card.Children.Add(dockPanel2);
 				}
@@ -624,11 +624,11 @@ namespace AISwitchDesk
 			TextBlock textBlock = Control<TextBlock>("LogDetail");
 			textBlock.Text = ((handoff == null) ? "还没有交接记录。" : (handoff.From + " → " + handoff.To + "  ·  " + new DateTime(handoff.Created, DateTimeKind.Utc).ToLocalTime().ToString("MM-dd HH:mm") + "\n" + handoff.Detail));
 			textBlock.ToolTip = textBlock.Text;
-			bool flag = handoff != null && (handoff.Stage == "paired" || handoff.Stage == "unpaired" || handoff.Stage == "pair-missing");
-			bool flag2 = handoff != null && handoff.Stage != "done" && handoff.Stage != "cancel" && !flag;
+			bool flag = handoff != null && (handoff.Stage == Stages.Paired || handoff.Stage == Stages.Unpaired || handoff.Stage == Stages.PairMissing);
+			bool flag2 = handoff != null && handoff.Stage != Stages.Done && handoff.Stage != Stages.Cancel && !flag;
 			Control<Button>("Files").Visibility = ((handoff == null || flag) ? Visibility.Collapsed : Visibility.Visible);
 			Control<Button>("Resume").Visibility = ((!flag2) ? Visibility.Collapsed : Visibility.Visible);
-			Control<Button>("CancelJob").Visibility = ((!flag2 || !(handoff.Stage != "confirm") || !(handoff.Stage != "return-confirm")) ? Visibility.Collapsed : Visibility.Visible);
+			Control<Button>("CancelJob").Visibility = ((!flag2 || !(handoff.Stage != Stages.Confirm) || !(handoff.Stage != Stages.ReturnConfirm)) ? Visibility.Collapsed : Visibility.Visible);
 		}
 
 		private void Change(bool cancel)
@@ -639,15 +639,15 @@ namespace AISwitchDesk
 				return;
 			}
 			handoff = RelayStore.Load(handoff.Id);
-			if (handoff.Stage == "linked" && handoff.LinkedId != null)
+			if (handoff.Stage == Stages.Linked && handoff.LinkedId != null)
 			{
 				handoff = RelayStore.Load(handoff.LinkedId);
 			}
-			if (!(handoff.Stage == "done") && !(handoff.Stage == "cancel") && (!cancel || (!(handoff.Stage == "confirm") && !(handoff.Stage == "return-confirm"))))
+			if (!(handoff.Stage == Stages.Done) && !(handoff.Stage == Stages.Cancel) && (!cancel || (!(handoff.Stage == Stages.Confirm) && !(handoff.Stage == Stages.ReturnConfirm))))
 			{
 				if (cancel)
 				{
-					handoff.Stage = "cancel";
+					handoff.Stage = Stages.Cancel;
 					handoff.Detail = "已停止后续操作。";
 				}
 				else

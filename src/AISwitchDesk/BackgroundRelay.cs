@@ -74,21 +74,12 @@ namespace AISwitchDesk
 			}
 		}
 
-		private static string Family(string app)
-		{
-			if (!(app == "Claude"))
-			{
-				return "OpenAI.Codex_2p2nqsd0c76g0";
-			}
-			return "Claude_pzs8sxrjxfjjc";
-		}
-
 		internal static bool IsClient(IntPtr window, string app)
 		{
 			uint pid;
 			if (Native.IsWindow(window) && Native.GetWindowThreadProcessId(window, out pid) != 0)
 			{
-				return string.Equals(Native.PackageOf(pid), Family(app), StringComparison.OrdinalIgnoreCase);
+				return ClientApps.OwnsProcess(app, pid);
 			}
 			return false;
 		}
@@ -136,7 +127,7 @@ namespace AISwitchDesk
 			try
 			{
 				Handoff handoff = RelayStore.Load(j.Id);
-				if (!(handoff.Stage == "done") && !(handoff.Stage == "cancel") && handoff.Revision == j.Revision)
+				if (!(handoff.Stage == Stages.Done) && !(handoff.Stage == Stages.Cancel) && handoff.Revision == j.Revision)
 				{
 					handoff.Held = true;
 					handoff.Detail = reason;
@@ -151,17 +142,60 @@ namespace AISwitchDesk
 			}
 		}
 
-		private static void Report(string operation, Exception ex)
+		private static readonly object reportSync = new object();
+
+		private static readonly Dictionary<string, KeyValuePair<string, DateTime>> reported = new Dictionary<string, KeyValuePair<string, DateTime>>();
+
+		// Appends the whole failure to background.log. A loop that fails the same
+		// way every second writes once a minute. Logging itself never throws.
+		internal static void Report(string operation, Exception ex)
 		{
 			try
 			{
-				RelayStore.AtomicText(Path.Combine(RelayStore.Root, "background-" + operation + ".txt"), DateTime.UtcNow.ToString("o") + " " + ex.GetType().Name);
+				string text = ex.ToString();
+				lock (reportSync)
+				{
+					KeyValuePair<string, DateTime> last;
+					if (reported.TryGetValue(operation, out last) && last.Key == text && last.Value > DateTime.UtcNow)
+					{
+						return;
+					}
+					reported[operation] = new KeyValuePair<string, DateTime>(text, DateTime.UtcNow.AddMinutes(1.0));
+					Directory.CreateDirectory(RelayStore.Root);
+					string path = Path.Combine(RelayStore.Root, "background.log");
+					if (File.Exists(path) && new FileInfo(path).Length > 512000)
+					{
+						File.Delete(path + ".old");
+						File.Move(path, path + ".old");
+					}
+					File.AppendAllText(path, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + " [" + operation + "] " + text + Environment.NewLine, RelayStore.Utf8);
+				}
 			}
-			catch (IOException)
+			catch (Exception)
 			{
 			}
-			catch (UnauthorizedAccessException)
+		}
+
+		// Keeps one background loop alive. A failure that escapes the loop is
+		// logged and the loop starts again, instead of leaving a running process
+		// that no longer delivers anything.
+		private static void Guard(string operation, WaitHandle stop, Action loop)
+		{
+			while (!stop.WaitOne(0))
 			{
+				try
+				{
+					loop();
+				}
+				catch (Exception ex)
+				{
+					if (stop.WaitOne(0))
+					{
+						return;
+					}
+					Report(operation + " loop restarted", ex);
+				}
+				stop.WaitOne(3000);
 			}
 		}
 
@@ -179,11 +213,11 @@ namespace AISwitchDesk
 				{
 					Task task = Task.Factory.StartNew(delegate
 					{
-						Watch(stop);
+						Guard("source", stop, delegate { Watch(stop); });
 					}, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
 					Task task2 = Task.Factory.StartNew(delegate
 					{
-						Deliver(stop);
+						Guard("delivery", stop, delegate { Deliver(stop); });
 					}, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
 					try
 					{
@@ -208,6 +242,8 @@ namespace AISwitchDesk
 		private static void Watch(WaitHandle stop)
 		{
 			GptWatcher gptWatcher = new GptWatcher();
+			try
+			{
 			while (!stop.WaitOne(0))
 			{
 				try
@@ -243,7 +279,11 @@ namespace AISwitchDesk
 				}
 				stop.WaitOne(1000);
 			}
-			gptWatcher.Forget();
+			}
+			finally
+			{
+				gptWatcher.Forget();
+			}
 		}
 
 		private static void Deliver(WaitHandle stop)
@@ -253,20 +293,45 @@ namespace AISwitchDesk
 			Dictionary<string, DateTime> defer = new Dictionary<string, DateTime>();
 			Dictionary<string, DateTime> navigation = new Dictionary<string, DateTime>();
 			string path = Path.Combine(RelayStore.Root, "paired-relay-since.txt");
-			if (!File.Exists(path))
+			long result = DateTime.UtcNow.Ticks;
+			try
 			{
-				RelayStore.AtomicText(path, DateTime.UtcNow.Ticks.ToString());
+				if (!File.Exists(path))
+				{
+					RelayStore.AtomicText(path, result.ToString());
+				}
+				long saved;
+				if (long.TryParse(File.ReadAllText(path), out saved))
+				{
+					result = saved;
+				}
 			}
-			long result;
-			if (!long.TryParse(File.ReadAllText(path), out result))
+			catch (IOException ex)
 			{
-				result = DateTime.UtcNow.Ticks;
+				Report("delivery", ex);
 			}
+			catch (UnauthorizedAccessException ex2)
+			{
+				Report("delivery", ex2);
+			}
+			DateTime nextPrune = DateTime.MinValue;
 			while (!stop.WaitOne(0))
 			{
 				Handoff job = null;
 				try
 				{
+					if (DateTime.UtcNow >= nextPrune)
+					{
+						nextPrune = DateTime.UtcNow.AddHours(6.0);
+						try
+						{
+							RelayStore.Prune(TimeSpan.FromDays(30.0));
+						}
+						catch (Exception ex4)
+						{
+							Report("cleanup", ex4);
+						}
+					}
 					if (!Enabled)
 					{
 						stop.WaitOne(900);
@@ -283,15 +348,15 @@ namespace AISwitchDesk
 					{
 					}
 					job = (from x in RelayStore.All()
-						where (x.Background || x.Task == null) && !x.Held && (x.Stage == "ready" || x.Stage == "confirm" || x.Stage == "linked" || x.Stage == "await-result" || x.Returning) && (!defer.ContainsKey(x.Id) || defer[x.Id] <= DateTime.UtcNow)
+						where (x.Background || x.Task == null) && !x.Held && (x.Stage == Stages.Ready || x.Stage == Stages.Confirm || x.Stage == Stages.Linked || x.Stage == Stages.AwaitResult || x.Returning) && (!defer.ContainsKey(x.Id) || defer[x.Id] <= DateTime.UtcNow)
 						orderby x.Created
 						select x).FirstOrDefault();
 					if (job != null)
 					{
-						if (job.Stage == "linked")
+						if (job.Stage == Stages.Linked)
 						{
 							Handoff handoff = RelayStore.Load(job.LinkedId);
-							if (handoff.Stage == "done" || handoff.Stage == "cancel")
+							if (handoff.Stage == Stages.Done || handoff.Stage == Stages.Cancel)
 							{
 								job.Stage = handoff.Stage;
 								job.Detail = handoff.Detail;
@@ -320,7 +385,7 @@ namespace AISwitchDesk
 							RelayPump.Returned(job);
 							continue;
 						}
-						if (!job.PairChats && !job.FromFolder && job.From == "ChatGPT" && job.Stage == "ready" && job.Task == null && job.Created >= result)
+						if (!job.PairChats && !job.FromFolder && job.From == "ChatGPT" && job.Stage == Stages.Ready && job.Task == null && job.Created >= result)
 						{
 							job.PairChats = true;
 							job.RoundTrip = RoundTrips.Requested(job.Instruction);
@@ -339,7 +404,7 @@ namespace AISwitchDesk
 							if (!dictionary.TryGetValue(app, out value) || value <= DateTime.UtcNow)
 							{
 								dictionary[app] = DateTime.UtcNow.AddMinutes(1.0);
-								new ClientWindow(app, Family(app), (app == "Claude") ? "Claude" : "App").Launch();
+								new ClientWindow(app).Launch();
 							}
 							defer[job.Id] = DateTime.UtcNow.AddSeconds(3.0);
 						}
@@ -350,7 +415,7 @@ namespace AISwitchDesk
 							{
 								DeliverTo(job, views, navigation);
 							});
-							defer[job.Id] = DateTime.UtcNow.AddSeconds((!(job.Stage == "await-result")) ? 1 : 5);
+							defer[job.Id] = DateTime.UtcNow.AddSeconds((!(job.Stage == Stages.AwaitResult)) ? 1 : 5);
 						}
 					}
 				}
@@ -358,26 +423,37 @@ namespace AISwitchDesk
 				{
 					if (job != null && !stop.WaitOne(0))
 					{
-						string message = ex3.GetBaseException().Message;
-						if (ex3 is ConversationPending || (job.Stage != "confirm" && job.Stage != "return-confirm" && (message.Contains("草稿") || message.Contains("登录") || message.Contains("已经打开") || ex3 is ElementNotAvailableException || ex3 is COMException || !Enabled)))
+						// Recording the failure reads and writes the same files that
+						// may have just failed. It must not end the delivery loop.
+						defer[job.Id] = DateTime.UtcNow.AddSeconds((ex3 is ConversationPending) ? 4 : 8);
+						try
 						{
-							defer[job.Id] = DateTime.UtcNow.AddSeconds((ex3 is ConversationPending) ? 4 : 8);
-							Handoff handoff2 = RelayStore.Load(job.Id);
-							if (handoff2.Revision == job.Revision && handoff2.Detail != message)
+							string message = ex3.GetBaseException().Message;
+							if (ex3 is ConversationPending || (job.Stage != Stages.Confirm && job.Stage != Stages.ReturnConfirm && (Retry.IsLater(ex3) || ex3 is ElementNotAvailableException || ex3 is COMException || !Enabled)))
 							{
-								handoff2.Detail = message;
-								try
+								Handoff handoff2 = RelayStore.Load(job.Id);
+								if (handoff2.Revision == job.Revision && handoff2.Detail != message)
 								{
-									RelayStore.Save(handoff2);
-								}
-								catch (InvalidOperationException)
-								{
+									handoff2.Detail = message;
+									try
+									{
+										RelayStore.Save(handoff2);
+									}
+									catch (InvalidOperationException)
+									{
+									}
 								}
 							}
+							else
+							{
+								Report("delivery paused " + job.Id, ex3);
+								Hold(job, message);
+							}
 						}
-						else
+						catch (Exception ex5)
 						{
-							Hold(job, message);
+							Report("delivery", ex3);
+							Report("delivery record", ex5);
 						}
 					}
 					else if (!stop.WaitOne(0))
@@ -410,7 +486,7 @@ namespace AISwitchDesk
 				chatUi.ExpectedRoute = route;
 				chatUi.ExpectedProof = job.SourceProof;
 			}
-			else if (job.Stage == "confirm")
+			else if (job.Stage == Stages.Confirm)
 			{
 				chatUi = views.FirstOrDefault((ChatUi v) => v.TranscriptContains(job.Receipt)) ?? chatUi;
 			}
@@ -434,7 +510,7 @@ namespace AISwitchDesk
 					throw new ConversationPending("正在核对发起任务的 GPT 对话。打开原对话后，后台会继续。");
 				}
 			}
-			if (job.Stage == "ready" && job.SourceRoute != null && job.ClaudeRoute == null)
+			if (job.Stage == Stages.Ready && job.SourceRoute != null && job.ClaudeRoute == null)
 			{
 				if (job.PairSnapshot == null)
 				{
@@ -447,7 +523,7 @@ namespace AISwitchDesk
 					job.ClaudeRoute = text2;
 					RelayStore.Save(job);
 				}
-				else if (RelayStore.All().Any((Handoff x) => x.Id != job.Id && x.Created < job.Created && x.PairChats && x.SourceRoute != null && x.ClaudeRoute == null && !x.Held && (x.Stage == "ready" || x.Stage == "confirm")))
+				else if (RelayStore.All().Any((Handoff x) => x.Id != job.Id && x.Created < job.Created && x.PairChats && x.SourceRoute != null && x.ClaudeRoute == null && !x.Held && (x.Stage == Stages.Ready || x.Stage == Stages.Confirm)))
 				{
 					throw new ConversationPending("正在等待前一条交接确定 Claude 对话。");
 				}

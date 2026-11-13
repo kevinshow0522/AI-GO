@@ -29,8 +29,8 @@ namespace AISwitchDesk
 
 		private readonly ClientWindow[] clients = new ClientWindow[2]
 		{
-			new ClientWindow("ChatGPT", "OpenAI.Codex_2p2nqsd0c76g0", "App"),
-			new ClientWindow("Claude", "Claude_pzs8sxrjxfjjc", "Claude")
+			new ClientWindow("ChatGPT"),
+			new ClientWindow("Claude")
 		};
 
 		private readonly UsageSlot[] usage = new UsageSlot[2]
@@ -952,9 +952,6 @@ namespace AISwitchDesk
 			client.LaunchDeadline = DateTime.UtcNow.AddSeconds(30.0);
 			try
 			{
-				int num = default(int);
-				int num2 = num;
-				int num3 = 0;
 				try
 				{
 					client.Starting = Task.Run((Action)client.Launch);
@@ -1211,9 +1208,11 @@ namespace AISwitchDesk
 				{
 					RefreshQuota(0);
 				}
-				if (selected == 1 && !collapsed && DateTime.UtcNow >= nextClaudeObservation && usage[1].Report.ReadAt < DateTime.UtcNow.AddMinutes(-3.0).Ticks)
+				// Read-only, so it runs whichever app is selected. It looks more
+				// often while Claude is in front, when its usage page may be open.
+				if (DateTime.UtcNow >= nextClaudeObservation && usage[1].Report.ReadAt < DateTime.UtcNow.AddMinutes(-1.0).Ticks)
 				{
-					nextClaudeObservation = DateTime.UtcNow.AddMinutes(1.0);
+					nextClaudeObservation = DateTime.UtcNow.AddSeconds(clients[1].Recognizes(foregroundWindow) ? 10.0 : 60.0);
 					usage[1].ObserveOpenClaude(KnownWindow("Claude"));
 				}
 			}
@@ -1366,16 +1365,29 @@ namespace AISwitchDesk
 			{
 				return usage[0].Refresh(PlanUsage.OpenAI);
 			}
+			// Reading never moves the Claude window to another page. The figures
+			// come from the usage page only while the person has it open.
 			IntPtr target = KnownWindow("Claude");
 			return usage[1].Refresh(delegate
 			{
+				if (target == IntPtr.Zero)
+				{
+					throw new IOException("未找到 Claude 窗口。");
+				}
 				PlanReport result = null;
-				if (!ClientInput.TryUse("Claude", delegate
+				try
 				{
-					result = PlanUsage.Claude(target, () => new ClientWindow("Claude", "Claude_pzs8sxrjxfjjc", "Claude").FindMainWindow());
-				}))
+					result = PlanUsage.OpenClaudeUsage(target);
+				}
+				catch (ElementNotAvailableException)
 				{
-					throw new IOException("Claude 正在处理附件，请稍后刷新。");
+				}
+				catch (System.Runtime.InteropServices.COMException)
+				{
+				}
+				if (result == null)
+				{
+					throw new IOException("为了不打断对话，侧栏不会替你跳转页面。在 Claude 打开「设置 → 用量」，这里会自动更新。");
 				}
 				return result;
 			});

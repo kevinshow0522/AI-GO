@@ -44,7 +44,7 @@ namespace AISwitchDesk
 				try
 				{
 					Handoff handoff = RelayStore.Load(id);
-					if (!handoff.RoundTrip || handoff.To != "Claude" || handoff.Stage == "cancel" || (handoff.Stage != "confirm" && handoff.Stage != "await-result" && !handoff.Returning && handoff.Stage != "done"))
+					if (!handoff.RoundTrip || handoff.To != "Claude" || handoff.Stage == Stages.Cancel || (handoff.Stage != Stages.Confirm && handoff.Stage != Stages.AwaitResult && !handoff.Returning && handoff.Stage != Stages.Done))
 					{
 						throw new InvalidOperationException("这项交接当前不接收回传文件。");
 					}
@@ -71,7 +71,7 @@ namespace AISwitchDesk
 							}
 							return handoff;
 						}
-						if (handoff.Stage != "confirm" && handoff.Stage != "await-result")
+						if (handoff.Stage != Stages.Confirm && handoff.Stage != Stages.AwaitResult)
 						{
 							throw new InvalidOperationException("这项交接已经结束。");
 						}
@@ -86,9 +86,9 @@ namespace AISwitchDesk
 						}
 						handoff.ReturnName = name;
 						handoff.ReturnHash = text3;
-						if (handoff.Stage == "await-result")
+						if (handoff.Stage == Stages.AwaitResult)
 						{
-							handoff.Stage = "return-ready";
+							handoff.Stage = Stages.ReturnReady;
 							handoff.Held = false;
 						}
 						handoff.Detail = "已保存 Claude 的成品，准备回到原 GPT 对话。";

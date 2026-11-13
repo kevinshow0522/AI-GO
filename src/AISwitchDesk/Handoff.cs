@@ -92,9 +92,9 @@ namespace AISwitchDesk
 		{
 			get
 			{
-				if (!(Stage == "return-ready"))
+				if (!(Stage == Stages.ReturnReady))
 				{
-					return Stage == "return-confirm";
+					return Stage == Stages.ReturnConfirm;
 				}
 				return true;
 			}
@@ -204,7 +204,7 @@ namespace AISwitchDesk
 		{
 			if (Held)
 			{
-				if (!(Stage == "confirm") && !(Stage == "return-confirm"))
+				if (!(Stage == Stages.Confirm) && !(Stage == Stages.ReturnConfirm))
 				{
 					return "待处理";
 				}
@@ -212,37 +212,37 @@ namespace AISwitchDesk
 			}
 			switch (Stage)
 			{
-			case "capture":
+			case Stages.Capture:
 				return "等候 GPT 文件";
-			case "linked":
+			case Stages.Linked:
 				return "等候投递回执";
-			case "ask":
+			case Stages.Ask:
 				return "等候写作";
-			case "writing":
+			case Stages.Writing:
 				return "等待文件";
-			case "ready":
+			case Stages.Ready:
 				return "等待转发";
-			case "confirm":
+			case Stages.Confirm:
 				return "核对送达";
-			case "await-result":
+			case Stages.AwaitResult:
 				return "等候 Claude 修改";
-			case "return-ready":
+			case Stages.ReturnReady:
 				return "等待回传";
-			case "return-confirm":
+			case Stages.ReturnConfirm:
 				return "核对回传";
-			case "paired":
+			case Stages.Paired:
 				return "已配对";
-			case "unpaired":
+			case Stages.Unpaired:
 				return "已解除配对";
-			case "pair-missing":
+			case Stages.PairMissing:
 				return "未能配对";
-			case "done":
+			case Stages.Done:
 				if (!RoundTrip)
 				{
 					return "已送达";
 				}
 				return "已回到原对话";
-			case "cancel":
+			case Stages.Cancel:
 				return "已取消";
 			default:
 				return "待处理";

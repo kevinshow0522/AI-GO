@@ -38,17 +38,17 @@ namespace AISwitchDesk
 					return;
 				}
 				job = (from x in rows
-					where !x.Background && x.Task != null && !x.Held && x.Stage != "done" && x.Stage != "cancel"
-					orderby (x.Stage == "writing") ? 1 : 0, x.Created
+					where !x.Background && x.Task != null && !x.Held && x.Stage != Stages.Done && x.Stage != Stages.Cancel
+					orderby (x.Stage == Stages.Writing) ? 1 : 0, x.Created
 					select x).FirstOrDefault();
 				if (job == null)
 				{
 					return;
 				}
 				Busy = true;
-				bool source = job.Stage == "ask" || job.Stage == "writing";
+				bool source = job.Stage == Stages.Ask || job.Stage == Stages.Writing;
 				string app = (source ? job.From : job.To);
-				IntPtr window = desk.RelayWindow(app, job.Stage != "writing");
+				IntPtr window = desk.RelayWindow(app, job.Stage != Stages.Writing);
 				if (window == IntPtr.Zero)
 				{
 					return;
@@ -68,7 +68,7 @@ namespace AISwitchDesk
 				try
 				{
 					Handoff handoff = RelayStore.Load(job.Id);
-					if (handoff.Stage != "cancel" && handoff.Stage != "done")
+					if (handoff.Stage != Stages.Cancel && handoff.Stage != Stages.Done)
 					{
 						handoff.Held = true;
 						handoff.Detail = ex.GetBaseException().Message;
@@ -88,26 +88,26 @@ namespace AISwitchDesk
 
 		internal static void Advance(Handoff j, ChatUi ui)
 		{
-			if (j.Stage == "ask" || ((j.Stage == "ready" || j.Stage == "return-ready") && (!j.UploadStarted || !ui.PickingFile)))
+			if (j.Stage == Stages.Ask || ((j.Stage == Stages.Ready || j.Stage == Stages.ReturnReady) && (!j.UploadStarted || !ui.PickingFile)))
 			{
 				ui.WaitForEditor();
 			}
 			switch (j.Stage)
 			{
-			case "ask":
+			case Stages.Ask:
 				if (ui.HasAttachments(ui.Editor()))
 				{
-					throw new InvalidOperationException("目标输入框已有草稿附件，请先处理后再继续。");
+					throw Retry.Later(new InvalidOperationException("目标输入框已有草稿附件，请先处理后再继续。"));
 				}
 				ui.Send(j.WriterPrompt(), delegate
 				{
 					j.SourcePage = ui.PageKey();
-					j.Stage = "writing";
+					j.Stage = Stages.Writing;
 					j.Detail = "正在等待写作方输出完整文件。";
 					RelayStore.Save(j);
 				});
 				break;
-			case "writing":
+			case Stages.Writing:
 			{
 				string text2 = ui.GeneratedFile(j);
 				if (text2 == null)
@@ -120,17 +120,17 @@ namespace AISwitchDesk
 				else
 				{
 					RelayStore.AtomicText(RelayStore.FileOf(j), text2);
-					j.Stage = "ready";
+					j.Stage = Stages.Ready;
 					j.Detail = "文件已生成。";
 					RelayStore.Save(j);
 				}
 				break;
 			}
-			case "await-result":
+			case Stages.AwaitResult:
 				RoundTrips.Observe(j, ui);
 				break;
-			case "return-ready":
-			case "ready":
+			case Stages.ReturnReady:
+			case Stages.Ready:
 			{
 				bool returning = j.Returning;
 				if (!returning && j.ClaudeRoute == null && !ui.FreshConversation(j))
@@ -158,7 +158,7 @@ namespace AISwitchDesk
 				ui.Send(j.ReceiverPrompt(), delegate
 				{
 					ui.VerifyAttachment(j);
-					j.Stage = (returning ? "return-confirm" : "confirm");
+					j.Stage = (returning ? Stages.ReturnConfirm : Stages.Confirm);
 					j.Detail = "正在核对聊天发送回执。";
 					RelayStore.Save(j);
 				});
@@ -168,8 +168,8 @@ namespace AISwitchDesk
 				}
 				break;
 			}
-			case "return-confirm":
-			case "confirm":
+			case Stages.ReturnConfirm:
+			case Stages.Confirm:
 				ui.CheckRoute();
 				if (ui.Posted(j.Receipt))
 				{
@@ -187,7 +187,7 @@ namespace AISwitchDesk
 		private static void Delivered(Handoff sent, ChatUi ui)
 		{
 			Handoff handoff = RelayStore.Load(sent.Id);
-			if (handoff.Stage == "done" || handoff.Stage == "cancel")
+			if (handoff.Stage == Stages.Done || handoff.Stage == Stages.Cancel)
 			{
 				return;
 			}
@@ -207,7 +207,7 @@ namespace AISwitchDesk
 				handoff.ClaudeRoute = text;
 				ConversationPairs.Set(handoff.SourceRoute, text, false, handoff.PairSnapshot);
 			}
-			handoff.Stage = ((!handoff.RoundTrip) ? "done" : ((handoff.ReturnHash != null) ? "return-ready" : "await-result"));
+			handoff.Stage = ((!handoff.RoundTrip) ? Stages.Done : ((handoff.ReturnHash != null) ? Stages.ReturnReady : Stages.AwaitResult));
 			handoff.Detail = (handoff.RoundTrip ? "Claude 已收到原件，修改完成后将自动回到原 GPT 对话。" : (handoff.To + " 的聊天已显示交接回执。"));
 			handoff.DownloadStarted = 0L;
 			handoff.DownloadExisting = null;
@@ -219,7 +219,7 @@ namespace AISwitchDesk
 
 		internal static void Returned(Handoff j)
 		{
-			j.Stage = "done";
+			j.Stage = Stages.Done;
 			j.Held = false;
 			j.Detail = "Claude 的修改稿已送回发起任务的 GPT 对话。";
 			RelayStore.Save(j);

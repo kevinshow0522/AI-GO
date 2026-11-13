@@ -272,7 +272,7 @@ namespace AISwitchDesk
 							}
 							bool roundTrip = flag && (dictionary2.ContainsKey("return_edited") ? object.Equals(Get(dictionary2, "return_edited"), true) : RoundTrips.Requested(Str(dictionary2, "instruction")));
 							handoff = RelayStore.Create(from, Str(dictionary2, "filename"), Str(dictionary2, "instruction"), null, text4, null, fixedId, object.Equals(Get(dictionary2, "new_chat"), true), true, null, 0L, null, null, flag, roundTrip, text7, sourceProof, text3);
-							if (handoff.Stage != "done" && handoff.Stage != "cancel")
+							if (handoff.Stage != Stages.Done && handoff.Stage != Stages.Cancel)
 							{
 								BackgroundRelay.EnsureRunning();
 							}
