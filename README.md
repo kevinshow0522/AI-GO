@@ -46,4 +46,4 @@ Claude 的额度只在你自己打开 Claude 的「设置 → 用量」页时读
 
 用侧栏自己的绘制代码，把各种状态和六套主题渲染成图片，输出到 `build\preview`。不需要启动侧栏，改完界面可以先看图。加 `-Frames` 会把动效的每一帧也导出。
 
-侧栏的绘制集中在 `src/AISwitchDesk/RailArt.cs`，只依赖 System.Drawing。折叠态图标和应用图标由 `tools/make-artwork.py` 按几何生成（需要 Python 和 Pillow）。
+侧栏的绘制集中在 `src/AISwitchDesk/RailArt.cs`，只依赖 System.Drawing。折叠态图标、应用图标和设置窗口里的并排对照图由 `tools/make-artwork.py` 生成（需要 Python 和 Pillow）。侧栏上的并排对照按钮是实时切出来的：平时切线是斜的，并排后转成竖线，ChatGPT 在左、Claude 在右，见 `src/AISwitchDesk/ComparisonGlyph.cs`。
