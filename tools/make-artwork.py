@@ -1,5 +1,9 @@
 # Builds the split-square mark as the folded-rail glyph (desk-mark.png) and
 # the application icon (app.ico), from geometry, so every size is drawn sharp.
+#
+#   python3 tools/make-artwork.py src [sheet.png]
+#
+# The optional second argument writes a sheet of every icon size to look at.
 import sys
 from PIL import Image, ImageDraw, ImageChops
 
@@ -66,14 +70,15 @@ if __name__ == '__main__':
     sizes = [16, 20, 24, 32, 40, 48, 64, 128, 256]
     images = [app_icon(s) for s in sizes]
     images[-1].save(out + '/app.ico', format='ICO', sizes=[(s, s) for s in sizes], append_images=images[:-1])
-    # A sheet to look at.
-    sheet = Image.new('RGBA', (1180, 420), (226, 229, 234, 255))
-    ImageDraw.Draw(sheet).rectangle([590, 0, 1180, 420], fill=(38, 42, 50, 255))
-    for i, bg in enumerate([0, 590]):
-        x = bg + 20
-        for s in [256, 128, 64, 48, 32, 24, 16]:
-            sheet.alpha_composite(app_icon(s), (x, 20)); x += s + 14
-        x = bg + 20
-        for s in [128, 64, 48, 32, 24, 16]:
-            sheet.alpha_composite(app_icon(s, (58, 131, 247)), (x, 290)); x += s + 14
-    sheet.save(out + '/icon-sheet.png')
+    if len(sys.argv) > 2:
+        # A sheet to look at.
+        sheet = Image.new('RGBA', (1180, 420), (226, 229, 234, 255))
+        ImageDraw.Draw(sheet).rectangle([590, 0, 1180, 420], fill=(38, 42, 50, 255))
+        for i, bg in enumerate([0, 590]):
+            x = bg + 20
+            for s in [256, 128, 64, 48, 32, 24, 16]:
+                sheet.alpha_composite(app_icon(s), (x, 20)); x += s + 14
+            x = bg + 20
+            for s in [128, 64, 48, 32, 24, 16]:
+                sheet.alpha_composite(app_icon(s, (58, 131, 247)), (x, 290)); x += s + 14
+        sheet.save(sys.argv[2])

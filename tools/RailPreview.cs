@@ -2,9 +2,14 @@
 // code as the live sidebar. Needs only System.Drawing, so it runs on Windows
 // (csc) and elsewhere (Mono):
 //
+//   .\preview.ps1                      (Windows)
+//
 //   mcs -langversion:5 -r:System.Drawing.dll -out:RailPreview.exe tools/RailPreview.cs \
 //       src/AISwitchDesk/{RailArt,ComparisonGlyph,DeskTheme,Ease,RailAction}.cs
-//   mono RailPreview.exe src out-folder
+//   mono RailPreview.exe src out-folder 2 --frames
+//
+// Arguments: artwork folder, output folder, pixels per design unit, and
+// --frames to also write every frame of the animations.
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -240,7 +245,7 @@ internal static class RailPreview
     static int Main(string[] args)
     {
         string source = args.Length > 0 ? args[0] : "src", output = args.Length > 1 ? args[1] : "preview";
-        if (args.Length > 2) scale = float.Parse(args[2], System.Globalization.CultureInfo.InvariantCulture);
+        if (args.Length > 2 && !args[2].StartsWith("--")) scale = float.Parse(args[2], System.Globalization.CultureInfo.InvariantCulture);
         Directory.CreateDirectory(output);
         marks = new[] { Load(source, "chatgpt.png"), Load(source, "claude-mark.png"), Load(source, "compare-mark.png"), null, null, Load(source, "desk-mark.png") };
 
@@ -263,10 +268,13 @@ internal static class RailPreview
         }
         using (var sheet = Stack(rows.ToArray())) sheet.Save(Path.Combine(output, "themes.png"), ImageFormat.Png);
 
-        Use("codex-light", null);
-        Motion(output, "light", Color.FromArgb(226, 229, 234));
-        Use("github-dark", null);
-        Motion(output, "dark", Color.FromArgb(38, 42, 50));
+        if (args.Contains("--frames"))
+        {
+            Use("codex-light", null);
+            Motion(output, "light", Color.FromArgb(226, 229, 234));
+            Use("github-dark", null);
+            Motion(output, "dark", Color.FromArgb(38, 42, 50));
+        }
         Console.WriteLine("Wrote " + Path.GetFullPath(output));
         return 0;
     }

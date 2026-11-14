@@ -37,3 +37,13 @@ Claude 的额度只在你自己打开 Claude 的「设置 → 用量」页时读
 - `-Baseline <exe>`：`Verify` 用来对照的旧版本，默认是已安装的侧栏。
 
 每次推送，GitHub Actions 会构建侧栏并编译测试（失败会拦截），然后在默认分支和当前分支上各跑一遍测试作为参考（不拦截，因为托管机器上的窗口测试不稳定）。
+
+## 界面预览
+
+```powershell
+.\preview.ps1
+```
+
+用侧栏自己的绘制代码，把各种状态和六套主题渲染成图片，输出到 `build\preview`。不需要启动侧栏，改完界面可以先看图。加 `-Frames` 会把动效的每一帧也导出。
+
+侧栏的绘制集中在 `src/AISwitchDesk/RailArt.cs`，只依赖 System.Drawing。折叠态图标和应用图标由 `tools/make-artwork.py` 按几何生成（需要 Python 和 Pillow）。

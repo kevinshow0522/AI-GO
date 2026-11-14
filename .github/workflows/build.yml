@@ -19,6 +19,11 @@ jobs:
         shell: powershell
         run: .\build.ps1
 
+      # The rail drawn by its own code, in every state and theme, to look at.
+      - name: Render the rail preview
+        shell: powershell
+        run: .\preview.ps1
+
       - name: Compile the regression programs
         shell: powershell
         run: .\test.ps1 -SkipBuild -CompileOnly -FetchWebView2
@@ -56,4 +61,5 @@ jobs:
             build/AISwitchDesk.exe
             build/test-log.txt
             build/test-log-reference.txt
+            build/preview/*.png
           if-no-files-found: warn
