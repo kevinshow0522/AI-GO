@@ -67,6 +67,12 @@ namespace AISwitchDesk
 
 		private float targetScale = 1f;
 
+		private float startSelect;
+
+		private float select;
+
+		private float targetSelect;
+
 		private float startDrop;
 
 		private float drop;
@@ -116,7 +122,8 @@ namespace AISwitchDesk
 				resourceName = null;
 				break;
 			case RailAction.Fold:
-				resourceName = "desk-mark.png";
+				// Folded, the rail shows the product mark: the same split artwork.
+				resourceName = "compare-mark.png";
 				break;
 			case RailAction.Claude:
 				resourceName = "claude-mark.png";
@@ -147,22 +154,25 @@ namespace AISwitchDesk
 
 		private void Transition()
 		{
-			float nextHighlight = RailArt.TileLevel(selected, hover, pressed, dragOver);
+			float nextHighlight = RailArt.TileLevel(hover, pressed);
+			float nextSelect = selected ? 1f : 0f;
 			float nextScale = RailArt.IconScale(Action, hover, pressed, dragOver);
 			float nextDrop = dragOver ? 1f : 0f;
 			float nextCut = cutEffect == null ? ComparisonGlyph.RestOffset : ComparisonGlyph.Offset(hover, pressed, dragOver);
-			if (nextHighlight == target && nextScale == targetScale && nextCut == targetCutOffset && nextDrop == targetDrop) return;
+			if (nextHighlight == target && nextScale == targetScale && nextCut == targetCutOffset && nextDrop == targetDrop && nextSelect == targetSelect) return;
 			if (motion.Enabled) Animate();
 			start = highlight;
 			startScale = iconScale;
 			startCutOffset = cutOffset;
 			startDrop = drop;
+			startSelect = select;
 			// A released icon springs back; everything else eases to a stop.
 			releasing = nextScale > iconScale && iconScale < 1f;
 			target = nextHighlight;
 			targetScale = nextScale;
 			targetCutOffset = nextCut;
 			targetDrop = nextDrop;
+			targetSelect = nextSelect;
 			if (Visible && RailMotion.Enabled)
 			{
 				duration = pressed ? 80 : (releasing ? 260 : 170);
@@ -176,6 +186,7 @@ namespace AISwitchDesk
 		private void SettleWithoutMotion()
 		{
 			highlight = target;
+			select = targetSelect;
 			drop = targetDrop;
 			iconScale = 1f;
 			cutOffset = ComparisonGlyph.RestOffset;
@@ -195,6 +206,7 @@ namespace AISwitchDesk
 			float progress = elapsed.IsRunning ? Math.Min(1f, (float)elapsed.ElapsedMilliseconds / duration) : 1f;
 			float weight = 1f - Ease.OutCubic(progress);
 			highlight = target + (start - target) * weight;
+			select = targetSelect + (startSelect - targetSelect) * weight;
 			drop = targetDrop + (startDrop - targetDrop) * weight;
 			iconScale = targetScale + (startScale - targetScale) * (releasing ? 1f - Ease.OutBack(progress) : weight);
 			cutOffset = targetCutOffset + (startCutOffset - targetCutOffset) * weight;
@@ -378,6 +390,7 @@ namespace AISwitchDesk
 			look.Mark = mark;
 			look.Width = base.Width;
 			look.Height = base.Height;
+			look.Select = select;
 			look.Highlight = highlight;
 			look.Drop = drop;
 			look.IconScale = iconScale;

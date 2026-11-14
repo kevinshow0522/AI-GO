@@ -108,7 +108,8 @@ internal static class RailPreview
                 bool drag = s.Drag == i, pressed = s.Pressed == i, hover = s.Hover == i;
                 look.DragOver = drag;
                 look.Drop = drag ? 1f : 0f;
-                look.Highlight = RailArt.TileLevel(selected, hover, pressed, drag);
+                look.Select = selected ? 1f : 0f;
+                look.Highlight = RailArt.TileLevel(hover, pressed);
                 look.IconScale = RailArt.IconScale(look.Action, hover, pressed, drag);
                 look.FocusCue = s.Focus == i;
                 look.Remaining = s.Remaining;
@@ -185,8 +186,11 @@ internal static class RailPreview
             new Scene { Caption = "pressed", Pressed = 3 },
             new Scene { Caption = "file over", Drag = 1 },
             new Scene { Caption = "comparing", Comparing = true, Low = true, Remaining = 12 },
+            new Scene { Caption = "usage open", UsageOpen = true, Hover = 0 },
             new Scene { Caption = "sending", TrailFrom = 0, TrailTo = 1, Travel = .55f,
                 Feedback = new[] { TransferMark.None, TransferMark.Working }, FeedbackPhase = new[] { 0f, .55f } },
+            new Scene { Caption = "receiving", TrailFrom = 1, TrailTo = 0, Travel = .45f,
+                Feedback = new[] { TransferMark.Working, TransferMark.None }, FeedbackPhase = new[] { .35f, 0f } },
             new Scene { Caption = "delivered", Selected = 1, Selection = 1,
                 Feedback = new[] { TransferMark.None, TransferMark.Success }, FeedbackPhase = new[] { 0f, 1f }, FeedbackAge = new[] { 0f, .5f } },
             new Scene { Caption = "queued / retry", Feedback = new[] { TransferMark.Waiting, TransferMark.Attention } },
@@ -247,7 +251,8 @@ internal static class RailPreview
         string source = args.Length > 0 ? args[0] : "src", output = args.Length > 1 ? args[1] : "preview";
         if (args.Length > 2 && !args[2].StartsWith("--")) scale = float.Parse(args[2], System.Globalization.CultureInfo.InvariantCulture);
         Directory.CreateDirectory(output);
-        marks = new[] { Load(source, "chatgpt.png"), Load(source, "claude-mark.png"), Load(source, "compare-mark.png"), null, null, Load(source, "desk-mark.png") };
+        var split = Load(source, "compare-mark.png");
+        marks = new[] { Load(source, "chatgpt.png"), Load(source, "claude-mark.png"), split, null, null, split };
 
         Use("codex-light", null);
         var light = Row(Color.FromArgb(226, 229, 234), Color.FromArgb(70, 76, 86), States());

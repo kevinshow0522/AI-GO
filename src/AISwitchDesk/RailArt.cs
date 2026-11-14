@@ -14,9 +14,10 @@ namespace AISwitchDesk
         internal RailAction Action;
         internal Bitmap Mark;
         internal float Width = 44f, Height = 43f;
-        // Highlight is the tile behind the icon: 0 at rest, 1 when selected.
-        // Drop is how far a dragged file has turned the tile into a drop target.
-        internal float Highlight, Drop, IconScale = 1f, Reveal = 1f, Expansion = 1f;
+        // Three tiles can sit behind the icon, each 0..1. Select fills it with the
+        // accent. Highlight is the neutral tile under the pointer. Drop marks it as
+        // the place a dragged file will go.
+        internal float Select, Highlight, Drop, IconScale = 1f, Reveal = 1f, Expansion = 1f;
         internal bool DragOver, FocusCue;
         internal double? Remaining;
         internal bool LowAllowance;
@@ -46,9 +47,9 @@ namespace AISwitchDesk
     // All rail drawing. It depends only on System.Drawing, so the same code
     // renders the live sidebar and the preview sheets in tools/RailPreview.cs.
     //
-    // The look is flat: one surface colour, a hairline edge, and neutral tiles.
-    // The accent colour is kept for the three things that carry meaning: which
-    // app is current, where a file is going, and where one can be dropped.
+    // The look is flat: one surface colour, a hairline edge, and tiles without
+    // gradients or shadows. The accent colour fills whatever is selected and
+    // also marks where a file is going and where one can be dropped.
     internal static class RailArt
     {
         internal const int NormWidth = 58, NormHeight = 292, FoldHeight = 56, CornerRadius = 24;
@@ -63,10 +64,9 @@ namespace AISwitchDesk
 
         private const float RestInk = .66f, TileRadius = 11f;
 
-        // How strongly the tile shows for a button's state.
-        internal static float TileLevel(bool selected, bool hover, bool pressed, bool drag)
+        // How strongly the neutral tile shows under the pointer.
+        internal static float TileLevel(bool hover, bool pressed)
         {
-            if (selected || drag) return 1f;
             return pressed ? .9f : (hover ? .55f : 0f);
         }
 
@@ -188,7 +188,7 @@ namespace AISwitchDesk
         internal static void Button(Graphics g, ButtonLook look)
         {
             DeskTheme theme = DeskTheme.Current;
-            float highlight = look.Highlight, drop = look.Drop, iconScale = look.IconScale, reveal = look.Reveal;
+            float select = look.Select, highlight = look.Highlight, drop = look.Drop, iconScale = look.IconScale, reveal = look.Reveal;
             float unit = look.Width / 44f;
             float height = look.Height / unit;
             g.SmoothingMode = SmoothingMode.AntiAlias;
@@ -197,17 +197,22 @@ namespace AISwitchDesk
             // The tile shrinks slightly under a press, so the press reads without colour.
             float inset = 2f + Math.Max(0f, (1f - iconScale) * 9f);
             var tile = new RectangleF(inset, inset, 44f - 2 * inset, height - 2 * inset);
-            if (highlight > 0.005f || drop > 0.005f)
+            // What sits on a selected tile takes the colour that reads on the accent.
+            Color line = DeskTheme.Mix(theme.AccentLine, theme.OnAccent, select);
+            if (select > 0.005f || highlight > 0.005f || drop > 0.005f)
             {
                 using (GraphicsPath path = Rounded(tile, TileRadius))
                 {
-                    using (var brush = new SolidBrush(Alpha(.105 * highlight * (1f - drop) * reveal, theme.Ink)))
+                    using (var brush = new SolidBrush(Alpha(select * reveal, theme.Accent)))
+                        g.FillPath(brush, path);
+                    // Under the pointer: a neutral tile, or a slight lift on a selected one.
+                    using (var brush = new SolidBrush(Alpha(.105 * highlight * (1f - drop) * reveal, DeskTheme.Mix(theme.Ink, theme.OnAccent, select))))
                         g.FillPath(brush, path);
                     if (drop > 0.005f)
                     {
-                        using (var brush = new SolidBrush(Alpha(.17 * drop * reveal, theme.Accent)))
+                        using (var brush = new SolidBrush(Alpha(.17 * drop * (1f - select) * reveal, theme.Accent)))
                             g.FillPath(brush, path);
-                        using (var ring = new Pen(Alpha(.9 * drop * reveal, theme.AccentLine), 1.3f))
+                        using (var ring = new Pen(Alpha(.9 * drop * reveal, line), 1.3f))
                             g.DrawPath(ring, path);
                     }
                 }
@@ -215,8 +220,9 @@ namespace AISwitchDesk
             Arrival(g, look, theme, height);
 
             // Icons rest slightly muted and come to full strength with the tile.
-            float strength = RestInk + (1f - RestInk) * Math.Min(1f, Math.Max(highlight, drop) / .5f);
-            Color color = Alpha(strength * reveal, theme.Ink);
+            float strength = RestInk + (1f - RestInk) * Math.Min(1f, Math.Max(select, Math.Max(highlight, drop)) / .5f);
+            Color ink = DeskTheme.Mix(theme.Ink, theme.OnAccent, select);
+            Color color = Alpha(strength * reveal, ink);
             g.TranslateTransform(22f, height / 2f - 2f * (1f - reveal));
             GraphicsState gstate = g.Save();
             g.ScaleTransform(iconScale, iconScale);
@@ -231,7 +237,7 @@ namespace AISwitchDesk
                     DrawMark(g, look.Mark, color, 24);
                     break;
                 case RailAction.Compare:
-                    Comparison(g, look, color, Alpha(reveal, theme.AccentLine));
+                    Comparison(g, look, color, Alpha(reveal, line));
                     break;
                 case RailAction.Usage:
                     Allowance(g, look, color, theme);
@@ -247,11 +253,11 @@ namespace AISwitchDesk
                     break;
                 case RailAction.Fold:
                     float open = Ease.SmoothStep((look.Expansion - 0.06f) / 0.48f);
-                    if (open < 1f) DrawMark(g, look.Mark, Alpha((1f - open) * reveal, theme.Ink), 24);
+                    if (open < 1f) Brand(g, look.Mark, Alpha((1f - open) * reveal, ink), Alpha((1f - open) * reveal, line));
                     if (open > 0f)
                     {
                         g.RotateTransform(80f * (1f - open));
-                        pen.Color = Alpha(open * strength, theme.Ink);
+                        pen.Color = Alpha(open * strength, ink);
                         g.DrawLines(pen, new[] { new PointF(-4.5f, 2f), new PointF(0f, -2.2f), new PointF(4.5f, 2f) });
                     }
                     break;
@@ -260,11 +266,12 @@ namespace AISwitchDesk
             g.Restore(gstate);
 
             if (look.DragOver || drop > .5f) Plus(g, theme, drop * reveal);
-            else if (look.Feedback != TransferMark.None) Badge(g, look, theme);
+            else if (look.Feedback != TransferMark.None) Badge(g, look, theme, line);
 
+            // The keyboard ring sits just outside the tile, so it shows around a selected one too.
             if (!look.FocusCue) return;
-            using (var cue = new Pen(theme.AccentLine, 1.5f))
-            using (GraphicsPath path = Rounded(new RectangleF(-20.25f, -height / 2f + 1.75f, 40.5f, height - 3.5f), TileRadius + .25f))
+            using (var cue = new Pen(theme.AccentLine, 1.4f))
+            using (GraphicsPath path = Rounded(new RectangleF(-21.3f, -height / 2f + .7f, 42.6f, height - 1.4f), TileRadius + 1.3f))
                 g.DrawPath(cue, path);
         }
 
@@ -274,7 +281,7 @@ namespace AISwitchDesk
             if (look.Feedback != TransferMark.Success || look.FeedbackAge <= 0f || look.FeedbackAge >= .55f) return;
             float t = Ease.OutCubic(look.FeedbackAge / .55f);
             float inset = 2f + 5f * (1f - t);
-            using (var ring = new Pen(Alpha(.75 * (1f - t) * look.Reveal, theme.AccentLine), 1.4f))
+            using (var ring = new Pen(Alpha(.75 * (1f - t) * look.Reveal, DeskTheme.Mix(theme.AccentLine, theme.OnAccent, look.Select)), 1.4f))
             using (GraphicsPath path = Rounded(new RectangleF(inset, inset, 44f - 2 * inset, height - 2 * inset), TileRadius))
                 g.DrawPath(ring, path);
         }
@@ -287,6 +294,17 @@ namespace AISwitchDesk
             Bitmap mark = look.Mark;
             ComparisonGlyph.Draw(g, delegate(Graphics target, Color color, int size) { DrawMark(target, mark, color, size); },
                 ink, slash, offset, look.Sweep);
+        }
+
+        // The product's own mark, shown when the rail is folded: the ChatGPT and
+        // Claude halves with the accent slash between them.
+        private static void Brand(Graphics g, Bitmap mark, Color ink, Color slash)
+        {
+            GraphicsState state = g.Save();
+            g.ScaleTransform(.78f, .78f);
+            ComparisonGlyph.Draw(g, delegate(Graphics target, Color color, int size) { DrawMark(target, mark, color, size); },
+                ink, slash, ComparisonGlyph.RestOffset, -1f);
+            g.Restore(state);
         }
 
         // "A file can go here."
@@ -305,7 +323,7 @@ namespace AISwitchDesk
         }
 
         // Transfer state, at the icon's lower right.
-        private static void Badge(Graphics g, ButtonLook look, DeskTheme theme)
+        private static void Badge(Graphics g, ButtonLook look, DeskTheme theme, Color line)
         {
             float phase = look.FeedbackPhase, fade = look.FeedbackFade * look.Reveal;
             if (fade <= 0f) return;
@@ -316,9 +334,9 @@ namespace AISwitchDesk
             case TransferMark.Working:
                 // A dot with a ring that keeps leaving it.
                 float reach = Ease.OutCubic(phase);
-                using (var halo = new Pen(Alpha(.55 * (1f - reach) * fade, theme.AccentLine), 1.2f))
+                using (var halo = new Pen(Alpha(.55 * (1f - reach) * fade, line), 1.2f))
                     g.DrawEllipse(halo, -2.8f - 4.2f * reach, -2.8f - 4.2f * reach, 5.6f + 8.4f * reach, 5.6f + 8.4f * reach);
-                using (var dot = new SolidBrush(Alpha(fade, theme.AccentLine)))
+                using (var dot = new SolidBrush(Alpha(fade, line)))
                     g.FillEllipse(dot, -2.8f, -2.8f, 5.6f, 5.6f);
                 break;
             case TransferMark.Waiting:
@@ -384,7 +402,12 @@ namespace AISwitchDesk
         // Remaining allowance as a ring that empties clockwise.
         private static void Allowance(Graphics g, ButtonLook look, Color ink, DeskTheme theme)
         {
-            if (look.LowAllowance) ink = Color.FromArgb(Math.Max((int)ink.A, (int)(230 * look.Reveal)), theme.Warning);
+            if (look.LowAllowance)
+            {
+                // On a selected tile the warning needs a shade that reads on the accent.
+                Color onAccent = theme.OnAccent.GetBrightness() > 0.5f ? Color.FromArgb(255, 230, 173) : Color.FromArgb(99, 62, 21);
+                ink = Color.FromArgb(Math.Max((int)ink.A, (int)(230 * look.Reveal)), DeskTheme.Mix(theme.Warning, onAccent, look.Select));
+            }
             RectangleF rect = new RectangleF(-9.6f, -9.6f, 19.2f, 19.2f);
             using (var track = new Pen(Color.FromArgb(ink.A * 30 / 100, ink), 2.1f))
                 g.DrawEllipse(track, rect);
