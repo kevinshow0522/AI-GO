@@ -19,6 +19,24 @@
       <Setter Property="FocusVisualStyle" Value="{StaticResource {x:Static SystemParameters.FocusVisualStyleKey}}"/>
     </Style>
     <Style TargetType="ListBox" BasedOn="{StaticResource SettingsControl}"/>
+    <Style TargetType="ScrollBar">
+      <Setter Property="Width" Value="8"/><Setter Property="MinWidth" Value="8"/><Setter Property="Background" Value="Transparent"/>
+      <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ScrollBar">
+        <Grid Background="Transparent">
+          <Track x:Name="PART_Track" IsDirectionReversed="True">
+            <Track.Thumb><Thumb>
+              <Thumb.Template><ControlTemplate TargetType="Thumb">
+                <Border x:Name="bar" Margin="2,1,1,1" CornerRadius="2.5" Opacity=".4" Background="{DynamicResource ThemeMuted}"/>
+                <ControlTemplate.Triggers>
+                  <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="bar" Property="Opacity" Value=".75"/></Trigger>
+                  <Trigger Property="IsDragging" Value="True"><Setter TargetName="bar" Property="Opacity" Value=".9"/></Trigger>
+                </ControlTemplate.Triggers>
+              </ControlTemplate></Thumb.Template>
+            </Thumb></Track.Thumb>
+          </Track>
+        </Grid>
+      </ControlTemplate></Setter.Value></Setter>
+    </Style>
     <Style TargetType="ScrollViewer" BasedOn="{StaticResource SettingsControl}"/>
     <Style x:Key="CloseFocus" TargetType="Control">
       <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Control">
@@ -78,7 +96,7 @@
         </Border>
         <ControlTemplate.Triggers>
           <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="pill" Property="Background" Value="{DynamicResource ThemeHover}"/></Trigger>
-          <Trigger Property="IsChecked" Value="True"><Setter TargetName="pill" Property="Background" Value="{DynamicResource ThemeSelected}"/><Setter Property="FontWeight" Value="SemiBold"/></Trigger>
+          <Trigger Property="IsChecked" Value="True"><Setter TargetName="pill" Property="Background" Value="{DynamicResource ThemeAccent}"/><Setter Property="Foreground" Value="{DynamicResource ThemeOnAccent}"/><Setter Property="FontWeight" Value="SemiBold"/></Trigger>
         </ControlTemplate.Triggers>
       </ControlTemplate></Setter.Value></Setter>
     </Style>

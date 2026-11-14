@@ -104,8 +104,10 @@ namespace AISwitchDesk
             AccentLine = Contrasting(Accent, Surface, 3.0);
             Muted = Contrasting(Mix(Surface, Ink, .68), Surface, 4.5);
             Rule = Mix(Surface, Ink, .24);
-            Hover = Mix(Control, Accent, .15);
-            Selected = Mix(Control, Accent, .24);
+            // Under the pointer and under a press, a control darkens without taking
+            // on colour. The accent is kept for what is actually chosen.
+            Hover = Mix(Control, Ink, .065);
+            Selected = Mix(Control, Ink, .125);
             Warning = Contrasting(Rgb(Surface.GetBrightness() < .5f ? 0xF8D45D : 0x95611F), Surface, 3.0);
             OnWarning = TextOn(Warning);
         }

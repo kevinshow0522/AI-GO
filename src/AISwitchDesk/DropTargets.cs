@@ -75,7 +75,7 @@ namespace AISwitchDesk
                 float line = Math.Max(1f, scale);
                 var tile = new RectangleF(line / 2, line / 2, Width - line, Height - line);
                 using (var path = RailButton.Rounded(tile, 9 * scale))
-                using (var fill = new SolidBrush(hot ? theme.Selected : theme.Control))
+                using (var fill = new SolidBrush(hot ? DeskTheme.Mix(theme.Control, theme.Accent, .17) : theme.Control))
                 using (var border = new Pen(hot ? theme.AccentLine : theme.Rule, line))
                 {
                     g.FillPath(fill, path);
