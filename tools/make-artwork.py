@@ -1,5 +1,9 @@
-# Builds the split-square mark as the folded-rail glyph (desk-mark.png) and
-# the application icon (app.ico), from geometry, so every size is drawn sharp.
+# Builds the sidebar's generated artwork into the given folder:
+#
+#   desk-mark.png     the split-square mark shown when the rail is folded
+#   app.ico           the same mark as the application icon, every size drawn sharp
+#   compare-mark.png  the comparison button: the ChatGPT and Claude logos either
+#                     side of an open diagonal, where the code draws the accent slash
 #
 #   python3 tools/make-artwork.py src [sheet.png]
 #
@@ -64,9 +68,36 @@ def app_icon(px, slash=None):
         im.paste(slash + (255,), mask=s)
     return im.resize((px, px), Image.LANCZOS)
 
+# The comparison artwork is 32 design units square. Each logo sits wholly on
+# its own side of the bottom-left to top-right diagonal, so the diagonal stays
+# clear for the slash and the two can slide apart when the pointer is over them.
+COMPARE_UNIT = 8
+COMPARE_LOGO = 15.4     # size of each logo, in design units
+COMPARE_OFFSET = 6.3    # how far each logo's centre is from the middle, on both axes
+
+
+def compare_mark(folder):
+    n = 32 * COMPARE_UNIT
+    canvas = Image.new('L', (n, n), 0)
+    for name, direction in (('chatgpt.png', -1), ('claude-mark.png', 1)):
+        art = Image.open(folder + '/' + name).convert('RGBA').getchannel('A')
+        art = art.crop(art.getbbox())
+        scale = COMPARE_LOGO * COMPARE_UNIT / max(art.size)
+        art = art.resize((round(art.size[0] * scale), round(art.size[1] * scale)), Image.LANCZOS)
+        centre = n / 2 + direction * COMPARE_OFFSET * COMPARE_UNIT
+        canvas.paste(art, (round(centre - art.size[0] / 2), round(centre - art.size[1] / 2)))
+    pixels = canvas.load()
+    for x in range(n):
+        assert pixels[x, n - 1 - x] == 0, 'a logo reaches the diagonal'
+    mark = Image.new('RGBA', (n, n), (0, 0, 0, 0))
+    mark.putalpha(canvas)
+    return mark
+
+
 if __name__ == '__main__':
     out = sys.argv[1]
     desk_mark().save(out + '/desk-mark.png')
+    compare_mark(out).save(out + '/compare-mark.png')
     sizes = [16, 20, 24, 32, 40, 48, 64, 128, 256]
     images = [app_icon(s) for s in sizes]
     images[-1].save(out + '/app.ico', format='ICO', sizes=[(s, s) for s in sizes], append_images=images[:-1])

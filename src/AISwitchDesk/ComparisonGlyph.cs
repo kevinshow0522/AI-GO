@@ -4,12 +4,15 @@ using System.Drawing.Drawing2D;
 
 namespace AISwitchDesk
 {
+    // The comparison button: the ChatGPT logo above the slash and the Claude
+    // logo below it. The artwork leaves the diagonal open; the slash is drawn
+    // here in the accent colour, and the two logos slide apart or together.
     internal static class ComparisonGlyph
     {
         internal const float RestOffset = 1.05f;
         internal const float PressedOffset = .52f;
-        internal const float SlashHalfSpan = 11.8f;
-        internal const float SlashWidth = 2.45f;
+        internal const float SlashHalfSpan = 10.4f;
+        internal const float SlashWidth = 2.2f;
         internal const int SweepMilliseconds = 460;
         internal const int TapMilliseconds = 190;
 
