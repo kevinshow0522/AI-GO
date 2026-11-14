@@ -35,6 +35,15 @@ namespace AISwitchDesk
 
 		private readonly Bitmap mark;
 
+		// The comparison button's second logo.
+		private readonly Bitmap mark2;
+
+		private float startCutAngle = ComparisonGlyph.RestAngle;
+
+		private float cutAngle = ComparisonGlyph.RestAngle;
+
+		private float targetCutAngle = ComparisonGlyph.RestAngle;
+
 		private readonly Timer motion = new Timer
 		{
 			Interval = 15
@@ -131,24 +140,29 @@ namespace AISwitchDesk
 				resourceName = "chatgpt.png";
 				break;
 			case RailAction.Compare:
-				resourceName = "compare-mark.png";
+				// Both logos, whole. ComparisonGlyph shows half of each.
+				resourceName = "chatgpt.png";
+				mark2 = LoadMark("claude-mark.png");
 				cutEffect = new Stopwatch();
 				break;
 			}
 			if (resourceName != null)
 			{
-				using (Stream stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(resourceName))
-				{
-					using (Image original = Image.FromStream(stream))
-					{
-						mark = new Bitmap(original);
-					}
-				}
+				mark = LoadMark(resourceName);
 			}
 			motion.Tick += delegate
 			{
 				Animate();
 			};
+		}
+
+		private static Bitmap LoadMark(string resourceName)
+		{
+			using (Stream stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(resourceName))
+			using (Image original = Image.FromStream(stream))
+			{
+				return new Bitmap(original);
+			}
 		}
 
 		private void Transition()
@@ -158,11 +172,15 @@ namespace AISwitchDesk
 			float nextScale = RailArt.IconScale(Action, hover, pressed, dragOver);
 			float nextDrop = dragOver ? 1f : 0f;
 			float nextCut = cutEffect == null ? ComparisonGlyph.RestOffset : ComparisonGlyph.Offset(hover, pressed, dragOver);
-			if (nextHighlight == target && nextScale == targetScale && nextCut == targetCutOffset && nextDrop == targetDrop && nextSelect == targetSelect) return;
+			// While the windows are arranged, the cut stands upright: one beside the other.
+			float nextAngle = cutEffect != null && selected ? ComparisonGlyph.SideBySideAngle : ComparisonGlyph.RestAngle;
+			if (nextHighlight == target && nextScale == targetScale && nextCut == targetCutOffset && nextDrop == targetDrop && nextSelect == targetSelect && nextAngle == targetCutAngle) return;
 			if (motion.Enabled) Animate();
 			start = highlight;
 			startScale = iconScale;
 			startCutOffset = cutOffset;
+			startCutAngle = cutAngle;
+			bool turning = nextAngle != targetCutAngle;
 			startDrop = drop;
 			startSelect = select;
 			// A released icon springs back; everything else eases to a stop.
@@ -170,11 +188,12 @@ namespace AISwitchDesk
 			target = nextHighlight;
 			targetScale = nextScale;
 			targetCutOffset = nextCut;
+			targetCutAngle = nextAngle;
 			targetDrop = nextDrop;
 			targetSelect = nextSelect;
 			if (Visible && RailMotion.Enabled)
 			{
-				duration = pressed ? 80 : (releasing ? 260 : 170);
+				duration = turning ? 340 : (pressed ? 80 : (releasing ? 220 : 170));
 				elapsed.Restart();
 				motion.Start();
 			}
@@ -189,6 +208,7 @@ namespace AISwitchDesk
 			drop = targetDrop;
 			iconScale = 1f;
 			cutOffset = ComparisonGlyph.RestOffset;
+			cutAngle = targetCutAngle;
 			if (cutEffect != null) cutEffect.Reset();
 			elapsed.Reset();
 			motion.Stop();
@@ -209,6 +229,8 @@ namespace AISwitchDesk
 			drop = targetDrop + (startDrop - targetDrop) * weight;
 			iconScale = targetScale + (startScale - targetScale) * (releasing ? 1f - Ease.OutBack(progress) : weight);
 			cutOffset = targetCutOffset + (startCutOffset - targetCutOffset) * weight;
+			// The cut swings slightly past its mark and settles.
+			cutAngle = startCutAngle + (targetCutAngle - startCutAngle) * Ease.OutBack(progress);
 			if (cutEffect != null && cutEffect.IsRunning &&
 			    cutEffect.ElapsedMilliseconds >= (fileSweep ? ComparisonGlyph.SweepMilliseconds : ComparisonGlyph.TapMilliseconds))
 				cutEffect.Reset();
@@ -403,7 +425,9 @@ namespace AISwitchDesk
 			look.FeedbackPhase = FeedbackPhase;
 			look.FeedbackAge = FeedbackAge;
 			look.FeedbackFade = FeedbackFade;
+			look.Mark2 = mark2;
 			look.CutOffset = cutOffset;
+			look.CutAngle = cutAngle;
 			if (cutEffect != null && cutEffect.IsRunning)
 			{
 				if (fileSweep) look.Sweep = Math.Min(1f, (float)cutEffect.ElapsedMilliseconds / ComparisonGlyph.SweepMilliseconds);
@@ -420,6 +444,7 @@ namespace AISwitchDesk
 				if (mark != null)
 				{
 					mark.Dispose();
+					if (mark2 != null) mark2.Dispose();
 				}
 			}
 			base.Dispose(disposing);

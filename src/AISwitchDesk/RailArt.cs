@@ -12,7 +12,8 @@ namespace AISwitchDesk
     internal sealed class ButtonLook
     {
         internal RailAction Action;
-        internal Bitmap Mark;
+        // The comparison button shows two: the ChatGPT logo and, in Mark2, the Claude logo.
+        internal Bitmap Mark, Mark2;
         internal float Width = 44f, Height = 43f;
         // Three tiles can sit behind the icon, each 0..1. Select fills it with the
         // accent. Highlight is the neutral tile under the pointer. Drop marks it as
@@ -26,7 +27,7 @@ namespace AISwitchDesk
         // lands. FeedbackAge is seconds since it landed; FeedbackFade is 1 until
         // the badge starts to leave, then falls to 0.
         internal float FeedbackPhase, FeedbackAge, FeedbackFade = 1f;
-        internal float CutOffset = ComparisonGlyph.RestOffset;
+        internal float CutOffset = ComparisonGlyph.RestOffset, CutAngle = ComparisonGlyph.RestAngle;
         // Progress of the comparison glyph's file sweep and tap cue, or -1 when idle.
         internal float Sweep = -1f, Tap = -1f;
     }
@@ -289,9 +290,7 @@ namespace AISwitchDesk
             float offset = look.CutOffset;
             if (look.Tap >= 0f)
                 offset += (ComparisonGlyph.PressedOffset - offset) * (float)Math.Sin(Math.PI * Math.Min(1f, look.Tap));
-            Bitmap mark = look.Mark;
-            ComparisonGlyph.Draw(g, delegate(Graphics target, Color color, int size) { DrawMark(target, mark, color, size); },
-                ink, slash, offset, look.Sweep);
+            ComparisonGlyph.Draw(g, look.Mark, look.Mark2, ink, slash, offset, look.CutAngle, look.Sweep);
         }
 
         // "A file can go here."

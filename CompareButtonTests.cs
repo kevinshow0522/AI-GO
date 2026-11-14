@@ -178,9 +178,17 @@ internal static class CompareButtonTests
                 var accent=(Color)themes.GetField("AccentLine",Members).GetValue(theme);
                 foreach(int step in new[]{-8,-4,0,4,8})
                 {
-                    Color pixel=image.GetPixel((int)(image.Width/2.0+step*scale),(int)(image.Height/2.0-step*scale));
-                    Check(Math.Max(Math.Abs(pixel.R-accent.R),Math.Max(Math.Abs(pixel.G-accent.G),Math.Abs(pixel.B-accent.B)))<65,
-                        name+" missing the accent slash at "+step);
+                    // The slash is about two pixels wide at small sizes, and truncating the
+                    // sample point can land a pixel beside it. Look at its neighbours too.
+                    int sampleX=(int)Math.Round(image.Width/2.0+step*scale-.5), sampleY=(int)Math.Round(image.Height/2.0-step*scale-.5);
+                    bool found=false;
+                    for(int dy=-1;dy<=1 && !found;dy++)
+                        for(int dx=-1;dx<=1 && !found;dx++)
+                        {
+                            Color pixel=image.GetPixel(sampleX+dx,sampleY+dy);
+                            found=Math.Max(Math.Abs(pixel.R-accent.R),Math.Max(Math.Abs(pixel.G-accent.G),Math.Abs(pixel.B-accent.B)))<65;
+                        }
+                    Check(found,name+" missing the accent slash at "+step);
                 }
             }
             foreach(int offset in new[]{-6,6})

@@ -2,8 +2,8 @@
 #
 #   desk-mark.png     the split-square mark shown when the rail is folded
 #   app.ico           the same mark as the application icon, every size drawn sharp
-#   compare-mark.png  the comparison button: the ChatGPT and Claude logos either
-#                     side of an open diagonal, where the code draws the accent slash
+#   compare-mark.png  the comparison picture for the settings window: half of the
+#                     ChatGPT logo and half of the Claude logo, cut along a diagonal
 #
 #   python3 tools/make-artwork.py src [sheet.png]
 #
@@ -68,27 +68,39 @@ def app_icon(px, slash=None):
         im.paste(slash + (255,), mask=s)
     return im.resize((px, px), Image.LANCZOS)
 
-# The comparison artwork is 32 design units square. Each logo sits wholly on
-# its own side of the bottom-left to top-right diagonal, so the diagonal stays
-# clear for the slash and the two can slide apart when the pointer is over them.
+# The comparison artwork is 32 design units square: both logos at icon size on
+# one centre, each kept on its own side of the bottom-left to top-right
+# diagonal, with a clear band along it for the accent slash. The sidebar draws
+# this cut live (ComparisonGlyph.cs); this still image is the same picture for
+# the settings window.
 COMPARE_UNIT = 8
-COMPARE_LOGO = 15.4     # size of each logo, in design units
-COMPARE_OFFSET = 6.3    # how far each logo's centre is from the middle, on both axes
+COMPARE_LOGO = 24       # size of each logo, in design units
+COMPARE_HALF_GAP = .55  # clear space on each side of the diagonal
 
 
 def compare_mark(folder):
     n = 32 * COMPARE_UNIT
-    canvas = Image.new('L', (n, n), 0)
-    for name, direction in (('chatgpt.png', -1), ('claude-mark.png', 1)):
-        art = Image.open(folder + '/' + name).convert('RGBA').getchannel('A')
-        art = art.crop(art.getbbox())
-        scale = COMPARE_LOGO * COMPARE_UNIT / max(art.size)
-        art = art.resize((round(art.size[0] * scale), round(art.size[1] * scale)), Image.LANCZOS)
-        centre = n / 2 + direction * COMPARE_OFFSET * COMPARE_UNIT
-        canvas.paste(art, (round(centre - art.size[0] / 2), round(centre - art.size[1] / 2)))
+    big = n * 4
+    side = COMPARE_LOGO * COMPARE_UNIT * 4
+    origin = (big - side) // 2
+    # Signed distance from the diagonal, drawn large and scaled down so the cut is smooth.
+    band = COMPARE_HALF_GAP * COMPARE_UNIT * 4 * 2 ** .5
+    halves = []
+    for name, sign in (('chatgpt.png', -1), ('claude-mark.png', 1)):
+        art = Image.open(folder + '/' + name).convert('RGBA').getchannel('A').resize((side, side), Image.LANCZOS)
+        layer = Image.new('L', (big, big), 0)
+        layer.paste(art, (origin, origin))
+        keep = Image.new('L', (big, big), 0)
+        draw = ImageDraw.Draw(keep)
+        if sign < 0:
+            draw.polygon([(0, 0), (big - band, 0), (0, big - band)], fill=255)
+        else:
+            draw.polygon([(big, big), (big, band), (band, big)], fill=255)
+        halves.append(ImageChops.multiply(layer, keep))
+    canvas = ImageChops.lighter(halves[0], halves[1]).resize((n, n), Image.LANCZOS)
     pixels = canvas.load()
     for x in range(n):
-        assert pixels[x, n - 1 - x] == 0, 'a logo reaches the diagonal'
+        pixels[x, n - 1 - x] = 0
     mark = Image.new('RGBA', (n, n), (0, 0, 0, 0))
     mark.putalpha(canvas)
     return mark

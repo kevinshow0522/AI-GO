@@ -54,6 +54,8 @@ internal sealed class Scene
     internal float[] FeedbackAge = new float[2];
     internal float[] FeedbackFade = { 1f, 1f };
     internal float CutOffset = ComparisonGlyph.RestOffset, Sweep = -1f;
+    // Mid-animation values for the comparison button; below 0 means "whatever the state implies".
+    internal float CutAngle = -1f, CompareSelect = -1f;
 }
 
 internal static class RailPreview
@@ -123,8 +125,11 @@ internal static class RailPreview
                 }
                 if (i == (int)RailAction.Compare)
                 {
+                    look.Mark2 = marks[(int)RailAction.Claude];
                     look.CutOffset = s.Sweep >= 0f || s.CutOffset != ComparisonGlyph.RestOffset ? s.CutOffset : ComparisonGlyph.Offset(hover, pressed, drag);
+                    look.CutAngle = s.CutAngle >= 0f ? s.CutAngle : (s.Comparing ? ComparisonGlyph.SideBySideAngle : ComparisonGlyph.RestAngle);
                     look.Sweep = s.Sweep;
+                    if (s.CompareSelect >= 0f) look.Select = s.CompareSelect;
                 }
                 var state = g.Save();
                 g.SetClip(bounds);
@@ -183,6 +188,7 @@ internal static class RailPreview
         return new[] {
             new Scene { Caption = "rest" },
             new Scene { Caption = "hover", Selected = 1, Selection = 1, Hover = 0 },
+            new Scene { Caption = "hover compare", Hover = 2 },
             new Scene { Caption = "pressed", Pressed = 3 },
             new Scene { Caption = "file over", Drag = 1 },
             new Scene { Caption = "comparing", Comparing = true, Low = true, Remaining = 12 },
@@ -244,6 +250,26 @@ internal static class RailPreview
             emit(new Scene { Selected = 0, Selection = 1f - Ease.OutCubic(t), SelectionTail = 1f - Ease.InOutCubic(t) });
         }
         for (int f = 0; f < fps / 2; f++) emit(new Scene());
+        // The comparison button: the halves open under the pointer, close under
+        // a press, then the cut turns upright as the windows are arranged, and back.
+        float rest = ComparisonGlyph.RestOffset, open = ComparisonGlyph.Offset(true, false, false), shut = ComparisonGlyph.PressedOffset;
+        for (int f = 0; f <= 6; f++) emit(new Scene { Hover = 2, CutOffset = rest + (open - rest) * Ease.OutCubic(f / 6f) });
+        for (int f = 0; f < 8; f++) emit(new Scene { Hover = 2, CutOffset = open });
+        for (int f = 0; f <= 3; f++) emit(new Scene { Pressed = 2, CutOffset = open + (shut - open) * Ease.OutCubic(f / 3f) });
+        for (int f = 0; f <= 10; f++)
+        {
+            float t = f / 10f;
+            emit(new Scene { Comparing = true, CompareSelect = Ease.OutCubic(t), CutOffset = shut + (rest - shut) * Ease.OutCubic(t),
+                CutAngle = ComparisonGlyph.RestAngle + (ComparisonGlyph.SideBySideAngle - ComparisonGlyph.RestAngle) * Ease.OutBack(t) });
+        }
+        for (int f = 0; f < fps; f++) emit(new Scene { Comparing = true });
+        for (int f = 0; f <= 10; f++)
+        {
+            float t = f / 10f;
+            emit(new Scene { CompareSelect = 1f - Ease.OutCubic(t),
+                CutAngle = ComparisonGlyph.SideBySideAngle + (ComparisonGlyph.RestAngle - ComparisonGlyph.SideBySideAngle) * Ease.OutBack(t) });
+        }
+        for (int f = 0; f < fps / 2; f++) emit(new Scene());
     }
 
     static int Main(string[] args)
@@ -251,7 +277,7 @@ internal static class RailPreview
         string source = args.Length > 0 ? args[0] : "src", output = args.Length > 1 ? args[1] : "preview";
         if (args.Length > 2 && !args[2].StartsWith("--")) scale = float.Parse(args[2], System.Globalization.CultureInfo.InvariantCulture);
         Directory.CreateDirectory(output);
-        marks = new[] { Load(source, "chatgpt.png"), Load(source, "claude-mark.png"), Load(source, "compare-mark.png"), null, null, Load(source, "desk-mark.png") };
+        marks = new[] { Load(source, "chatgpt.png"), Load(source, "claude-mark.png"), Load(source, "chatgpt.png"), null, null, Load(source, "desk-mark.png") };
 
         Use("codex-light", null);
         var light = Row(Color.FromArgb(226, 229, 234), Color.FromArgb(70, 76, 86), States());
