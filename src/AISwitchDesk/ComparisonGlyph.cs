@@ -28,14 +28,14 @@ namespace AISwitchDesk
         {
             DrawHalf(g, drawMask, ink, GptHalf, -offset);
             DrawHalf(g, drawMask, ink, ClaudeHalf, offset);
-            using (var pen = new Pen(Color.FromArgb(ink.A, slash), SlashWidth))
+            using (var pen = new Pen(slash, SlashWidth))
             {
                 pen.StartCap = pen.EndCap = LineCap.Round;
                 g.DrawLine(pen, -SlashHalfSpan, SlashHalfSpan, SlashHalfSpan, -SlashHalfSpan);
             }
             if (sweep <= 0 || sweep >= 1) return;
 
-            float head = RailMotion.SmoothStep(sweep) * 1.30f;
+            float head = Ease.SmoothStep(sweep) * 1.30f;
             float from = Math.Max(0, head - .30f), to = Math.Min(1, head);
             if (from >= to) return;
             float alpha = Math.Min(1, (to - from) / .18f) * ink.A;

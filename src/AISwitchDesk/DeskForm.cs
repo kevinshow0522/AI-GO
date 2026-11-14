@@ -25,7 +25,7 @@ namespace AISwitchDesk
 
 		private const int ExpandedFoldTop = NormHeight - 32;
 
-		private static readonly int[] ButtonTop = { 21, 67, 121, 166, 211 };
+		private static readonly int[] ButtonTop = RailArt.ButtonTop;
 
 		private readonly ClientWindow[] clients = new ClientWindow[2]
 		{
@@ -67,6 +67,9 @@ namespace AISwitchDesk
 		private readonly Stopwatch selectionClock = new Stopwatch();
 		private float selectionStart;
 		private float selectionPosition;
+		// The marker's trailing end. It follows selectionPosition, so the marker stretches as it moves.
+		private float selectionTailStart;
+		private float selectionTail;
 
 		private readonly RelayPump relay;
 
@@ -362,11 +365,17 @@ namespace AISwitchDesk
 			{
 			}
 			LoadPosition();
+			selectionPosition = selectionTail = selected;
 			selectionMotion.Tick += delegate
 			{
-				float t = RailMotion.Enabled ? Math.Min(1f, selectionClock.ElapsedMilliseconds / 180f) : 1f;
-				selectionPosition = selectionStart + (selected - selectionStart) * RailMotion.SmoothStep(t);
-				if (t >= 1f) selectionMotion.Stop();
+				float t = RailMotion.Enabled ? Math.Min(1f, selectionClock.ElapsedMilliseconds / (1000f * RailArt.MarkerSeconds)) : 1f;
+				selectionPosition = selectionStart + (selected - selectionStart) * Ease.OutCubic(t);
+				selectionTail = selectionTailStart + (selected - selectionTailStart) * Ease.InOutCubic(t);
+				if (t >= 1f)
+				{
+					selectionPosition = selectionTail = selected;
+					selectionMotion.Stop();
+				}
 				InvalidateSelection();
 			};
 			expansion = ((!collapsed) ? 1 : 0);
@@ -569,39 +578,17 @@ namespace AISwitchDesk
 			Glass.PaintRail(e.Graphics, base.ClientRectangle, -SurfaceTop, SurfaceHeight, glass, delegate(Graphics g)
 			{
 				g.TranslateTransform(0f, SurfaceTop);
-				g.SmoothingMode = SmoothingMode.AntiAlias;
-				var theme = DeskTheme.Current;
-				float line = Math.Max(1f, P(100) / 100f);
-				var outline = new RectangleF(line / 2f, line / 2f, Width - line, SurfaceHeight - line);
-				using (var path = RailButton.Rounded(outline, P(CornerRadius) - line / 2f))
-				using (var sheen = new LinearGradientBrush(outline, Color.FromArgb(86, theme.Ink), Color.FromArgb(34, theme.Muted), 72f))
-				using (var edge = new Pen(sheen, line))
-					g.DrawPath(edge, path);
-				float visible = RailMotion.SmoothStep((expansion - 0.65f) / 0.35f);
-				if (visible > 0f)
-				{
-					float center = P(ButtonTop[0] + 21.5 + (ButtonTop[1] - ButtonTop[0]) * selectionPosition);
-					using (var marker = new Pen(Color.FromArgb((int)(visible * 255), theme.AccentLine), P(2)))
-					{
-						marker.StartCap = marker.EndCap = LineCap.Round;
-						g.DrawLine(marker, P(4), center - P(5), P(4), center + P(5));
-					}
-				}
-				PaintTransferTrail(g);
-				using (Pen pen = new Pen(Color.FromArgb(170, DeskTheme.Current.Muted), P(2.0)))
-				{
-					LineCap startCap = (pen.EndCap = LineCap.Round);
-					pen.StartCap = startCap;
-					g.DrawLine(pen, base.Width / 2 - P(6.0), P(11.0), base.Width / 2 + P(6.0), P(11.0));
-				}
-				float num = RailMotion.SmoothStep((expansion - 0.56f) / 0.18f);
-				if (num > 0f)
-				{
-					using (Pen pen2 = new Pen(Color.FromArgb((int)(num * 70f), DeskTheme.Current.Muted), 1f))
-					{
-						g.DrawLine(pen2, P(16.0), P(115.0), base.Width - P(16.0), P(115.0));
-					}
-				}
+				RailLook look = new RailLook();
+				look.Width = base.Width;
+				look.SurfaceHeight = SurfaceHeight;
+				look.Expansion = expansion;
+				look.SelectionPosition = selectionPosition;
+				look.SelectionTail = selectionTail;
+				look.TrailFrom = trailFrom;
+				look.TrailTo = trailTo;
+				look.TravelPhase = travelPhase;
+				look.P = P;
+				RailArt.Surface(g, look);
 			}, P(CornerRadius), backdrop != null);
 		}
 
@@ -876,6 +863,7 @@ namespace AISwitchDesk
 			{
 				selected = index;
 				selectionStart = selectionPosition;
+				selectionTailStart = selectionTail;
 				if (Visible && !collapsed && RailMotion.Enabled)
 				{
 					selectionClock.Restart();
@@ -884,7 +872,7 @@ namespace AISwitchDesk
 				else
 				{
 					selectionMotion.Stop();
-					selectionPosition = index;
+					selectionPosition = selectionTail = index;
 					InvalidateSelection();
 				}
 			}

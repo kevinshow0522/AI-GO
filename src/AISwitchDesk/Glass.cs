@@ -90,23 +90,10 @@ namespace AISwitchDesk
 			{
 				using (Graphics graphics = Graphics.FromImage(bitmap))
 				{
-					DeskTheme theme = DeskTheme.Current;
-					using (LinearGradientBrush brush = new LinearGradientBrush(new Rectangle(0, -offset, size.Width, Math.Max(1, railHeight)), Color.FromArgb((glass && !nativeBackdrop) ? 232 : 255, theme.RailTop), Color.FromArgb((glass && !nativeBackdrop) ? 242 : 255, theme.RailBottom), 90f))
+					RailArt.Fill(graphics, size, offset, railHeight, glass && !nativeBackdrop, radius > 0);
+					if (details != null)
 					{
-						graphics.CompositingMode = CompositingMode.SourceCopy;
-						if (radius > 0)
-						{
-							graphics.FillRectangle(brush, 0, -offset, size.Width, railHeight);
-						}
-						else
-						{
-							graphics.FillRectangle(brush, rect);
-						}
-						graphics.CompositingMode = CompositingMode.SourceOver;
-						if (details != null)
-						{
-							details(graphics);
-						}
+						details(graphics);
 					}
 				}
 				BitmapData bitmapData = bitmap.LockBits(rect, (radius <= 0 || !glass) ? ImageLockMode.ReadOnly : ImageLockMode.ReadWrite, PixelFormat.Format32bppPArgb);

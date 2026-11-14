@@ -20,8 +20,7 @@ namespace AISwitchDesk
 
 		internal static float SmoothStep(float value)
 		{
-			float num = Math.Max(0f, Math.Min(1f, value));
-			return num * num * (3f - 2f * num);
+			return Ease.SmoothStep(value);
 		}
 	}
 }
