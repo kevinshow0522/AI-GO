@@ -251,8 +251,7 @@ internal static class RailPreview
         string source = args.Length > 0 ? args[0] : "src", output = args.Length > 1 ? args[1] : "preview";
         if (args.Length > 2 && !args[2].StartsWith("--")) scale = float.Parse(args[2], System.Globalization.CultureInfo.InvariantCulture);
         Directory.CreateDirectory(output);
-        var split = Load(source, "compare-mark.png");
-        marks = new[] { Load(source, "chatgpt.png"), Load(source, "claude-mark.png"), split, null, null, split };
+        marks = new[] { Load(source, "chatgpt.png"), Load(source, "claude-mark.png"), Load(source, "compare-mark.png"), null, null, Load(source, "desk-mark.png") };
 
         Use("codex-light", null);
         var light = Row(Color.FromArgb(226, 229, 234), Color.FromArgb(70, 76, 86), States());

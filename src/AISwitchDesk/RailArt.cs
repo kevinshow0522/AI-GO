@@ -62,7 +62,7 @@ namespace AISwitchDesk
         // Seconds for the current-app marker to move between the two apps.
         internal const float MarkerSeconds = .3f;
 
-        private const float RestInk = .66f, TileRadius = 11f;
+        private const float TileRadius = 11f;
 
         // How strongly the neutral tile shows under the pointer.
         internal static float TileLevel(bool hover, bool pressed)
@@ -219,10 +219,8 @@ namespace AISwitchDesk
             }
             Arrival(g, look, theme, height);
 
-            // Icons rest slightly muted and come to full strength with the tile.
-            float strength = RestInk + (1f - RestInk) * Math.Min(1f, Math.Max(select, Math.Max(highlight, drop)) / .5f);
             Color ink = DeskTheme.Mix(theme.Ink, theme.OnAccent, select);
-            Color color = Alpha(strength * reveal, ink);
+            Color color = Alpha(reveal, ink);
             g.TranslateTransform(22f, height / 2f - 2f * (1f - reveal));
             GraphicsState gstate = g.Save();
             g.ScaleTransform(iconScale, iconScale);
@@ -253,11 +251,11 @@ namespace AISwitchDesk
                     break;
                 case RailAction.Fold:
                     float open = Ease.SmoothStep((look.Expansion - 0.06f) / 0.48f);
-                    if (open < 1f) Brand(g, look.Mark, Alpha((1f - open) * reveal, ink), Alpha((1f - open) * reveal, line));
+                    if (open < 1f) DrawMark(g, look.Mark, Alpha((1f - open) * reveal, ink), 24);
                     if (open > 0f)
                     {
                         g.RotateTransform(80f * (1f - open));
-                        pen.Color = Alpha(open * strength, ink);
+                        pen.Color = Alpha(open * .86, ink);
                         g.DrawLines(pen, new[] { new PointF(-4.5f, 2f), new PointF(0f, -2.2f), new PointF(4.5f, 2f) });
                     }
                     break;
@@ -294,17 +292,6 @@ namespace AISwitchDesk
             Bitmap mark = look.Mark;
             ComparisonGlyph.Draw(g, delegate(Graphics target, Color color, int size) { DrawMark(target, mark, color, size); },
                 ink, slash, offset, look.Sweep);
-        }
-
-        // The product's own mark, shown when the rail is folded: the ChatGPT and
-        // Claude halves with the accent slash between them.
-        private static void Brand(Graphics g, Bitmap mark, Color ink, Color slash)
-        {
-            GraphicsState state = g.Save();
-            g.ScaleTransform(.78f, .78f);
-            ComparisonGlyph.Draw(g, delegate(Graphics target, Color color, int size) { DrawMark(target, mark, color, size); },
-                ink, slash, ComparisonGlyph.RestOffset, -1f);
-            g.Restore(state);
         }
 
         // "A file can go here."

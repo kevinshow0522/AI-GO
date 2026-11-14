@@ -122,8 +122,7 @@ namespace AISwitchDesk
 				resourceName = null;
 				break;
 			case RailAction.Fold:
-				// Folded, the rail shows the product mark: the same split artwork.
-				resourceName = "compare-mark.png";
+				resourceName = "desk-mark.png";
 				break;
 			case RailAction.Claude:
 				resourceName = "claude-mark.png";
