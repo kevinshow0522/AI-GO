@@ -33,6 +33,10 @@ namespace AISwitchDesk
             trayMenu.Items.Add(new ToolStripMenuItem("设置", null, delegate { ShowRail(); OpenSettings(); }));
             trayMenu.Items.Add(new ToolStripSeparator());
             trayMenu.Items.Add(new ToolStripMenuItem("退出", null, delegate { ExitRail(); }));
+            // The same breathing room as the sidebar's other popups.
+            trayMenu.Padding = new Padding(2, 4, 2, 4);
+            foreach (ToolStripItem item in trayMenu.Items)
+                if (item is ToolStripMenuItem) item.Padding = new Padding(6, 4, 14, 4);
             trayMenu.Opening += delegate { trayToggle.Text = Visible ? "隐藏到托盘" : "显示侧栏"; };
             ApplyTrayTheme();
             tray = new NotifyIcon { Icon = base.Icon, Text = AppTitle, ContextMenuStrip = trayMenu };
