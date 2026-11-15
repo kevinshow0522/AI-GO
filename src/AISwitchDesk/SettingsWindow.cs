@@ -195,6 +195,21 @@ namespace AISwitchDesk
 				}
 			};
 			Control<RadioButton>("AppearanceTab").Checked += delegate { Page("AppearancePage"); };
+			Control<RadioButton>("GeneralTab").Checked += delegate { Page("GeneralPage"); ShowAutoStart(); };
+			CheckBox startup = Control<CheckBox>("StartWithWindows");
+			startup.Click += delegate
+			{
+				try
+				{
+					AutoStart.Set(startup.IsChecked == true);
+				}
+				catch (Exception error)
+				{
+					if (!(error is IOException) && !(error is UnauthorizedAccessException) && !(error is System.Security.SecurityException)) throw;
+					DropTrace.Write("settings", "autostart " + error.GetType().Name);
+				}
+				ShowAutoStart();
+			};
 			Control<RadioButton>("QueueTab").Checked += delegate { Page("QueuePage"); RefreshUploads(); };
 			var uploadList = Control<ItemsControl>("UploadList");
 			uploadList.ItemsSource = desk.Uploads.Entries;
@@ -502,6 +517,19 @@ namespace AISwitchDesk
 		private static void OpenFolder(string path)
 		{
 			Process.Start("explorer.exe", "\"" + path + "\"");
+		}
+
+		// The switch shows whether this copy starts at sign-in. Another copy
+		// registered there (an older install, a test build) is named, since
+		// turning the switch on replaces it.
+		private void ShowAutoStart()
+		{
+			string registered = AutoStart.Registered;
+			bool here = AutoStart.Enabled;
+			Control<CheckBox>("StartWithWindows").IsChecked = here;
+			Control<TextBlock>("StartWithWindowsNote").Text = here || registered == null
+				? "登录 Windows 后自动打开侧栏。"
+				: "现在开机启动的是另一份侧栏：" + registered + "。打开开关会改为启动这一份。";
 		}
 
 		private static TextBlock Text(string value, double size, string ink, bool bold)

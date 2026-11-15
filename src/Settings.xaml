@@ -208,14 +208,16 @@
         <Grid.ColumnDefinitions>
           <ColumnDefinition Width="Auto"/>
           <ColumnDefinition Width="Auto"/>
-          <ColumnDefinition Width="Auto"/>
           <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="Auto"/>
+          <ColumnDefinition Width="Auto"/>
         </Grid.ColumnDefinitions>
-        <Border Grid.ColumnSpan="4" Height="1" Background="{DynamicResource ThemeRule}" VerticalAlignment="Bottom"/>
+        <Border Grid.ColumnSpan="6" Height="1" Background="{DynamicResource ThemeRule}" VerticalAlignment="Bottom"/>
         <RadioButton Name="UseTab" GroupName="Pages" Style="{StaticResource Tab}" Content="套餐用量" Margin="0,0,22,0"/>
         <RadioButton Name="LogTab" Grid.Column="1" GroupName="Pages" Style="{StaticResource Tab}" Content="自动转发" Margin="0,0,22,0"/>
         <RadioButton Name="QueueTab" Grid.Column="2" GroupName="Pages" Style="{StaticResource Tab}" Content="文件队列"/>
-        <RadioButton Name="AppearanceTab" Grid.Column="3" HorizontalAlignment="Right" GroupName="Pages"
+        <RadioButton Name="GeneralTab" Grid.Column="4" GroupName="Pages" Style="{StaticResource Tab}" Content="常规" Margin="0,0,22,0"/>
+        <RadioButton Name="AppearanceTab" Grid.Column="5" GroupName="Pages"
                      Style="{StaticResource Tab}" Content="外观" IsChecked="True"/>
       </Grid>
       <Grid Grid.Row="2" Margin="0,12,0,7">
@@ -238,6 +240,13 @@
             </Grid>
             <UniformGrid Name="AccentChoices" Rows="1" Columns="6" Margin="-2,0,-2,0"
                          AutomationProperties.Name="强调色" KeyboardNavigation.DirectionalNavigation="Contained"/>
+          </StackPanel>
+        </Grid>
+        <Grid Name="GeneralPage" Visibility="Collapsed">
+          <StackPanel>
+            <CheckBox Name="StartWithWindows" Style="{StaticResource Switch}" Content="开机时启动侧栏" FontSize="14" FontWeight="SemiBold"/>
+            <TextBlock Name="StartWithWindowsNote" Margin="0,4,0,0" Style="{StaticResource Caption}" TextWrapping="Wrap"
+                       Text="登录 Windows 后自动打开侧栏。"/>
           </StackPanel>
         </Grid>
         <Grid Name="UsePage" Visibility="Collapsed">

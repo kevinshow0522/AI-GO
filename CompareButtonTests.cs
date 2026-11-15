@@ -446,6 +446,8 @@ internal static class CompareButtonTests
         Check(((System.Windows.UIElement)window.FindName("UsePage")).IsVisible,"usage tab");
         ((System.Windows.Controls.RadioButton)window.FindName("LogTab")).IsChecked=true;
         Check(((System.Windows.UIElement)window.FindName("LogPage")).IsVisible,"handoff tab");
+        ((System.Windows.Controls.RadioButton)window.FindName("GeneralTab")).IsChecked=true;
+        Check(((System.Windows.UIElement)window.FindName("GeneralPage")).IsVisible,"general tab");
         ((System.Windows.Controls.RadioButton)window.FindName("AppearanceTab")).IsChecked=true;
         string[] legacy={"mist","graphite","pine","sand","unknown-from-another-version","dracula|unknown"};
         string[] expected={"codex-light","github-dark","everforest-dark","solarized-light","codex-light","dracula"};
@@ -460,7 +462,7 @@ internal static class CompareButtonTests
     {
         var outline=window.Resources[System.Windows.SystemParameters.FocusVisualStyleKey] as System.Windows.Style;
         Check(outline!=null,"settings still use the Windows dotted focus visual");
-        string[] controls={"UseTab","LogTab","QueueTab","AppearanceTab","Alert20","Refresh","AutoSend","LogList",
+        string[] controls={"UseTab","LogTab","QueueTab","GeneralTab","AppearanceTab","StartWithWindows","Alert20","Refresh","AutoSend","LogList",
             "Resume","ClearUploads","OriginalAccent","Smaller","Larger","Compare","ExitRail"};
         foreach(string name in controls)
             Check(((System.Windows.Controls.Control)window.FindName(name)).FocusVisualStyle==outline,"focus style on "+name);

@@ -17,7 +17,7 @@ ChatGPT 一侧会识别 OpenAI 签名的桌面客户端：Codex 版和 ChatGPT �
 
 ## 后台交接
 
-后台进程的错误记录在 `%LOCALAPPDATA%\AI Switch Desk\background.log`（含完整堆栈，超过约 500 KB 时轮换为 `background.log.old`）。已完成或已取消的交接在闲置 30 天后连同文件副本自动清理；未完成和已暂停的交接不会被清理。
+后台进程的错误记录在 `%LOCALAPPDATA%\AI Switch Desk\background.log`（含完整堆栈，超过约 500 KB 时轮换为 `background.log.old`）。已完成或已取消的交接在闲置 30 天后连同文件副本自动清理；已暂停的交接在 10 分钟内没有被继续处理也会被清理；正在进行的交接不会被清理。
 
 ## 套餐用量
 
@@ -47,3 +47,17 @@ Claude 的额度只在你自己打开 Claude 的「设置 → 用量」页时读
 用侧栏自己的绘制代码，把各种状态和六套主题渲染成图片，输出到 `build\preview`。不需要启动侧栏，改完界面可以先看图。加 `-Frames` 会把动效的每一帧也导出。
 
 侧栏的绘制集中在 `src/AISwitchDesk/RailArt.cs`，只依赖 System.Drawing。折叠态图标、应用图标和设置窗口里的并排对照图由 `tools/make-artwork.py` 生成（需要 Python 和 Pillow）。侧栏上的并排对照按钮是实时切出来的：平时切线是斜的，并排后转成竖线，ChatGPT 在左、Claude 在右，见 `src/AISwitchDesk/ComparisonGlyph.cs`。
+
+## 发布
+
+推送一个与 `src/Properties/AssemblyInfo.cs` 版本号一致的标签，GitHub Actions 会构建并发布到 Releases，附带 `AISwitchDesk.exe` 和校验文件：
+
+```powershell
+git tag v3.6.0
+```
+
+```powershell
+git push origin v3.6.0
+```
+
+标签和版本号不一致时发布会失败，不会产生错误的版本。

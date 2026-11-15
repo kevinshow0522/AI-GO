@@ -136,7 +136,7 @@ internal static class WindowShots
                     Pump(500);
                     object settings = railType.GetField("settings", Members).GetValue(rail);
                     var window = (Wpf.Window)settings.GetType().GetField("window", Members).GetValue(settings);
-                    foreach (string page in new[] { "Appearance", "Use", "Log", "Queue" })
+                    foreach (string page in new[] { "Appearance", "Use", "Log", "Queue", "General" })
                     {
                         ((Wpf.Controls.RadioButton)window.FindName(page + "Tab")).IsChecked = true;
                         Pump(450);

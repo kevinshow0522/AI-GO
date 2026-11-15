@@ -259,15 +259,26 @@ namespace AISwitchDesk
 			return Stages.Finished(job.Stage);
 		}
 
-		// Removes finished handoffs, and their file copies, once they have been
-		// idle for the given time. Unfinished and paused handoffs are never removed.
-		internal static int Prune(TimeSpan keep)
+		// A paused handoff leaves first. A linked handoff whose target is removed
+		// fails to load it, is paused in turn, and follows on its own schedule.
+		private static bool Expired(Handoff job, long cutoff, long pausedCutoff)
+		{
+			long idle = Math.Max(job.Created, job.Updated);
+			if (Finished(job)) return idle <= cutoff;
+			return job.Held && idle <= pausedCutoff;
+		}
+
+		// Removes handoffs and their file copies once they have sat untouched for
+		// long enough: finished ones after keep, paused ones after keepPaused.
+		// A handoff that is still moving is never removed.
+		internal static int Prune(TimeSpan keep, TimeSpan keepPaused)
 		{
 			if (!Directory.Exists(Jobs))
 			{
 				return 0;
 			}
 			long cutoff = DateTime.UtcNow.Ticks - keep.Ticks;
+			long pausedCutoff = DateTime.UtcNow.Ticks - keepPaused.Ticks;
 			List<Handoff> all = All();
 			HashSet<string> linked = new HashSet<string>(from x in all
 				where x.LinkedId != null && !Finished(x)
@@ -275,7 +286,7 @@ namespace AISwitchDesk
 			int removed = 0;
 			foreach (Handoff job in all)
 			{
-				if (!Finished(job) || Math.Max(job.Created, job.Updated) > cutoff || linked.Contains(job.Id))
+				if (!Expired(job, cutoff, pausedCutoff) || (Finished(job) && linked.Contains(job.Id)))
 				{
 					continue;
 				}
@@ -297,7 +308,7 @@ namespace AISwitchDesk
 							continue;
 						}
 						Handoff current = Load(job.Id);
-						if (current.Revision == job.Revision && Finished(current))
+						if (current.Revision == job.Revision && Expired(current, cutoff, pausedCutoff))
 						{
 							Directory.Delete(Folder(job.Id), true);
 							removed++;
