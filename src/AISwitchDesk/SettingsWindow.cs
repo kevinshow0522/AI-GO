@@ -531,7 +531,9 @@ namespace AISwitchDesk
 
 		private bool checking;
 
-		private async void RunConnectionCheck()
+		// The check runs off the UI thread. Its result is handed back through the
+		// window's dispatcher, whichever thread or context started it.
+		private void RunConnectionCheck()
 		{
 			if (checking || closed) return;
 			checking = true;
@@ -539,26 +541,26 @@ namespace AISwitchDesk
 			button.IsEnabled = false;
 			Control<TextBlock>("CheckTime").Text = "正在检查…";
 			IntPtr gptWindow = desk.KnownWindow("ChatGPT"), claudeWindow = desk.KnownWindow("Claude");
-			List<CheckLine>[] results;
-			try
-			{
-				results = await Task.Run(() => new[] { ConnectionCheck.Run("ChatGPT", gptWindow), ConnectionCheck.Run("Claude", claudeWindow) });
-			}
-			catch (Exception error)
-			{
-				results = new[] { new List<CheckLine> { new CheckLine("检查", CheckState.Bad, error.GetBaseException().Message) }, new List<CheckLine>() };
-				DropTrace.Write("check", error.ToString());
-			}
-			finally
-			{
-				checking = false;
-			}
-			if (closed) return;
-			checkedAt = DateTime.UtcNow;
-			button.IsEnabled = true;
-			Control<TextBlock>("CheckTime").Text = DateTime.Now.ToString("HH:mm:ss") + " 检查";
-			ShowCheck(Control<StackPanel>("GptCheck"), "ChatGPT", results[0]);
-			ShowCheck(Control<StackPanel>("ClaudeCheck"), "Claude", results[1]);
+			var dispatcher = window.Dispatcher;
+			Task.Run(() => new[] { ConnectionCheck.Run("ChatGPT", gptWindow), ConnectionCheck.Run("Claude", claudeWindow) })
+				.ContinueWith(done => dispatcher.BeginInvoke((Action)delegate
+				{
+					checking = false;
+					if (closed) return;
+					List<CheckLine>[] results;
+					if (done.IsFaulted)
+					{
+						Exception error = done.Exception.GetBaseException();
+						DropTrace.Write("check", error.ToString());
+						results = new[] { new List<CheckLine> { new CheckLine("检查", CheckState.Bad, error.Message) }, new List<CheckLine>() };
+					}
+					else results = done.Result;
+					checkedAt = DateTime.UtcNow;
+					button.IsEnabled = true;
+					Control<TextBlock>("CheckTime").Text = DateTime.Now.ToString("HH:mm:ss") + " 检查";
+					ShowCheck(Control<StackPanel>("GptCheck"), "ChatGPT", results[0]);
+					ShowCheck(Control<StackPanel>("ClaudeCheck"), "Claude", results[1]);
+				}), TaskScheduler.Default);
 		}
 
 		private static void ShowCheck(StackPanel card, string title, List<CheckLine> lines)
