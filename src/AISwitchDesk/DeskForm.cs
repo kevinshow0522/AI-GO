@@ -17,7 +17,7 @@ namespace AISwitchDesk
 
 		private const int NormWidth = 58;
 
-		private const int NormHeight = 292;
+		private const int NormHeight = RailArt.NormHeight;
 
 		private const int FoldHeight = 56;
 
@@ -279,7 +279,7 @@ namespace AISwitchDesk
 			};
 			base.KeyPreview = true;
 			SetStyle(ControlStyles.UserPaint | ControlStyles.Opaque | ControlStyles.AllPaintingInWmPaint, true);
-			string[] labels = { "ChatGPT", "Claude", "并排对照", "套餐用量", "设置", "收起侧栏" };
+			string[] labels = { "ChatGPT", "Claude", "并排对照", "同时提问", "套餐用量", "设置", "收起侧栏" };
 			for (int i = 0; i < buttons.Length; i++)
 			{
 				RailButton railButton = new RailButton((RailAction)i, labels[i]);
@@ -323,6 +323,11 @@ namespace AISwitchDesk
 				BeginInvoke((Action)delegate { QueueFiles((int)RailAction.Compare, paths, false); });
 			};
 			compareButton.ContextRequested += delegate { OpenFileQueue(); };
+			buttons[(int)RailAction.Ask].Click += delegate
+			{
+				OpenAsk();
+			};
+			tips.SetToolTip(buttons[(int)RailAction.Ask], "同时提问 · 一段话发到 ChatGPT 和 Claude 当前的对话");
 			buttons[(int)RailAction.Usage].Click += delegate
 			{
 				OpenUsage();
@@ -624,6 +629,7 @@ namespace AISwitchDesk
 			}
 			CloseExitMenu();
 			HideSettings();
+			HideAsk();
 			usagePopup.Close();
 			collapsed = !collapsed;
 			UpdateFoldLabel();
@@ -1121,6 +1127,7 @@ namespace AISwitchDesk
 			if (!closing)
 			{
 				HideSettings();
+				HideAsk();
 				usagePopup.Close();
 				if (exitMenu == null)
 				{
@@ -1263,6 +1270,7 @@ namespace AISwitchDesk
 		{
 			CloseExitMenu();
 			HideSettings();
+			HideAsk();
 			if (usagePopup.Visible)
 			{
 				usagePopup.Close();
@@ -1320,6 +1328,7 @@ namespace AISwitchDesk
 			if (settings != null) settings.ApplyTheme();
 			if (dropTargets != null) dropTargets.ApplyTheme();
 			if (exitMenu != null) exitMenu.ApplyTheme();
+			if (askBox != null) askBox.ApplyTheme();
 			usagePopup.ApplyTheme();
 			if (usagePopup.Visible) usagePopup.Display(QuotaTitle, usage[selected], dpi);
 			return true;
@@ -1396,6 +1405,7 @@ namespace AISwitchDesk
 				return;
 			}
 			CloseExitMenu();
+			HideAsk();
 			if (SettingsOpen)
 			{
 				settings.Hide();
@@ -1477,6 +1487,10 @@ namespace AISwitchDesk
 			if (exitMenu != null)
 			{
 				exitMenu.Dispose();
+			}
+			if (askBox != null)
+			{
+				askBox.Dispose();
 			}
 			usagePopup.Close();
 			SavePosition();

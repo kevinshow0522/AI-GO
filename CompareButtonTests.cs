@@ -113,7 +113,7 @@ internal static class CompareButtonTests
                 Check((bool)client.GetType().GetMethod("IsRemembered",Members).Invoke(client,new object[]{form.Handle}),"test window not recognized");
             }
             var buttons=rail.Controls.OfType<Button>().OrderBy(button=>button.TabIndex).ToArray();
-            Check(buttons.Select(button=>button.AccessibleName).SequenceEqual(new[]{"ChatGPT","Claude","并排对照","套餐用量","设置","收起侧栏"}),"button order or accessibility labels");
+            Check(buttons.Select(button=>button.AccessibleName).SequenceEqual(new[]{"ChatGPT","Claude","并排对照","同时提问","套餐用量","设置","收起侧栏"}),"button order or accessibility labels");
             Check(buttons.Take(3).All(button=>button.AllowDrop) && buttons.Skip(3).All(button=>!button.AllowDrop),"app and compare file targets");
             var compare=buttons[2];
             foreach (int zoom in new[]{80,84,100,110,160})

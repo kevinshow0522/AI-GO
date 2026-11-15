@@ -166,6 +166,19 @@ internal static class WindowShots
                     Pump(150);
                 });
 
+                Try("ask-" + tag, delegate
+                {
+                    call("OpenAsk", null);
+                    Pump(350);
+                    object box = railType.GetField("askBox", Members).GetValue(rail);
+                    var window = (Wpf.Window)box.GetType().GetField("window", Members).GetValue(box);
+                    ((Wpf.Controls.TextBox)window.FindName("Prompt")).Text = "这两段代码哪一段更容易维护？说明理由。";
+                    Pump(200);
+                    Save(window, "ask-" + tag);
+                    call("HideAsk", null);
+                    Pump(150);
+                });
+
                 Try("menu-" + tag, delegate
                 {
                     call("ShowExitMenu", new object[] { 0, new Point(rail.Right + 8, rail.Top + 40), true });

@@ -53,9 +53,10 @@ namespace AISwitchDesk
     // also marks where a file is going and where one can be dropped.
     internal static class RailArt
     {
-        internal const int NormWidth = 58, NormHeight = 292, FoldHeight = 56, CornerRadius = 24;
+        internal const int NormWidth = 58, NormHeight = 337, FoldHeight = 56, CornerRadius = 24;
 
-        internal static readonly int[] ButtonTop = { 21, 67, 121, 166, 211 };
+        // ChatGPT and Claude, then the rule, then the tools.
+        internal static readonly int[] ButtonTop = { 21, 67, 121, 166, 211, 256 };
 
         // Seconds for one trip of the transfer trail, including its pause.
         internal const double TravelSeconds = 1.5;
@@ -238,6 +239,9 @@ namespace AISwitchDesk
                 case RailAction.Compare:
                     Comparison(g, look, color, Alpha(reveal, line));
                     break;
+                case RailAction.Ask:
+                    AskGlyph(g, color, Alpha(reveal, line));
+                    break;
                 case RailAction.Usage:
                     Allowance(g, look, color, theme);
                     break;
@@ -291,6 +295,33 @@ namespace AISwitchDesk
             if (look.Tap >= 0f)
                 offset += (ComparisonGlyph.PressedOffset - offset) * (float)Math.Sin(Math.PI * Math.Min(1f, look.Tap));
             ComparisonGlyph.Draw(g, look.Mark, look.Mark2, ink, slash, offset, look.CutAngle, look.Sweep);
+        }
+
+        // A speech bubble with the comparison button's slash across it: one
+        // message, going to both sides.
+        private static void AskGlyph(Graphics g, Color ink, Color slash)
+        {
+            using (var bubble = new GraphicsPath())
+            using (var pen = new Pen(ink, 1.8f))
+            {
+                pen.LineJoin = LineJoin.Round;
+                pen.StartCap = pen.EndCap = LineCap.Round;
+                const float left = -9.5f, top = -8.5f, right = 9.5f, bottom = 5.5f, r = 4.5f;
+                bubble.AddArc(left, top, 2 * r, 2 * r, 180f, 90f);
+                bubble.AddArc(right - 2 * r, top, 2 * r, 2 * r, 270f, 90f);
+                bubble.AddArc(right - 2 * r, bottom - 2 * r, 2 * r, 2 * r, 0f, 90f);
+                bubble.AddLine(right - r, bottom, -2.5f, bottom);
+                bubble.AddLine(-2.5f, bottom, -6.5f, 9.5f);
+                bubble.AddLine(-6.5f, 9.5f, -6.5f, bottom);
+                bubble.AddArc(left, bottom - 2 * r, 2 * r, 2 * r, 90f, 90f);
+                bubble.CloseFigure();
+                g.DrawPath(pen, bubble);
+            }
+            using (var cut = new Pen(slash, 2f))
+            {
+                cut.StartCap = cut.EndCap = LineCap.Round;
+                g.DrawLine(cut, -3.6f, 2f, 3.6f, -5f);
+            }
         }
 
         // "A file can go here."
