@@ -5,6 +5,7 @@ namespace AISwitchDesk
 		ChatGPT,
 		Claude,
 		Compare,
+		Ask,
 		Usage,
 		Settings,
 		Fold

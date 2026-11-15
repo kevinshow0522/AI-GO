@@ -113,7 +113,7 @@ internal static class CompareButtonTests
                 Check((bool)client.GetType().GetMethod("IsRemembered",Members).Invoke(client,new object[]{form.Handle}),"test window not recognized");
             }
             var buttons=rail.Controls.OfType<Button>().OrderBy(button=>button.TabIndex).ToArray();
-            Check(buttons.Select(button=>button.AccessibleName).SequenceEqual(new[]{"ChatGPT","Claude","并排对照","套餐用量","设置","收起侧栏"}),"button order or accessibility labels");
+            Check(buttons.Select(button=>button.AccessibleName).SequenceEqual(new[]{"ChatGPT","Claude","并排对照","同时提问","套餐用量","设置","收起侧栏"}),"button order or accessibility labels");
             Check(buttons.Take(3).All(button=>button.AllowDrop) && buttons.Skip(3).All(button=>!button.AllowDrop),"app and compare file targets");
             var compare=buttons[2];
             foreach (int zoom in new[]{80,84,100,110,160})
@@ -178,9 +178,17 @@ internal static class CompareButtonTests
                 var accent=(Color)themes.GetField("AccentLine",Members).GetValue(theme);
                 foreach(int step in new[]{-8,-4,0,4,8})
                 {
-                    Color pixel=image.GetPixel((int)(image.Width/2.0+step*scale),(int)(image.Height/2.0-step*scale));
-                    Check(Math.Max(Math.Abs(pixel.R-accent.R),Math.Max(Math.Abs(pixel.G-accent.G),Math.Abs(pixel.B-accent.B)))<65,
-                        name+" missing the accent slash at "+step);
+                    // The slash is about two pixels wide at small sizes, and truncating the
+                    // sample point can land a pixel beside it. Look at its neighbours too.
+                    int sampleX=(int)Math.Round(image.Width/2.0+step*scale-.5), sampleY=(int)Math.Round(image.Height/2.0-step*scale-.5);
+                    bool found=false;
+                    for(int dy=-1;dy<=1 && !found;dy++)
+                        for(int dx=-1;dx<=1 && !found;dx++)
+                        {
+                            Color pixel=image.GetPixel(sampleX+dx,sampleY+dy);
+                            found=Math.Max(Math.Abs(pixel.R-accent.R),Math.Max(Math.Abs(pixel.G-accent.G),Math.Abs(pixel.B-accent.B)))<65;
+                        }
+                    Check(found,name+" missing the accent slash at "+step);
                 }
             }
             foreach(int offset in new[]{-6,6})
@@ -438,6 +446,12 @@ internal static class CompareButtonTests
         Check(((System.Windows.UIElement)window.FindName("UsePage")).IsVisible,"usage tab");
         ((System.Windows.Controls.RadioButton)window.FindName("LogTab")).IsChecked=true;
         Check(((System.Windows.UIElement)window.FindName("LogPage")).IsVisible,"handoff tab");
+        var tabs=new[]{"UseTab","LogTab","QueueTab","GeneralTab","AppearanceTab"}.Select(n=>(System.Windows.Controls.RadioButton)window.FindName(n)).ToArray();
+        var tabRow=(System.Windows.Controls.Grid)tabs[0].Parent;
+        Check(tabs.All(t=>System.Windows.Controls.Grid.GetColumn(t)<tabRow.ColumnDefinitions.Count) &&
+            tabs.Select(t=>System.Windows.Controls.Grid.GetColumn(t)).Distinct().Count()==tabs.Length,"settings tabs share a column");
+        ((System.Windows.Controls.RadioButton)window.FindName("GeneralTab")).IsChecked=true;
+        Check(((System.Windows.UIElement)window.FindName("GeneralPage")).IsVisible,"general tab");
         ((System.Windows.Controls.RadioButton)window.FindName("AppearanceTab")).IsChecked=true;
         string[] legacy={"mist","graphite","pine","sand","unknown-from-another-version","dracula|unknown"};
         string[] expected={"codex-light","github-dark","everforest-dark","solarized-light","codex-light","dracula"};
@@ -452,7 +466,7 @@ internal static class CompareButtonTests
     {
         var outline=window.Resources[System.Windows.SystemParameters.FocusVisualStyleKey] as System.Windows.Style;
         Check(outline!=null,"settings still use the Windows dotted focus visual");
-        string[] controls={"UseTab","LogTab","QueueTab","AppearanceTab","Alert20","Refresh","AutoSend","LogList",
+        string[] controls={"UseTab","LogTab","QueueTab","GeneralTab","AppearanceTab","StartWithWindows","StartInTray","RunCheck","HideToTray","Alert20","Refresh","AutoSend","LogList",
             "Resume","ClearUploads","OriginalAccent","Smaller","Larger","Compare","ExitRail"};
         foreach(string name in controls)
             Check(((System.Windows.Controls.Control)window.FindName(name)).FocusVisualStyle==outline,"focus style on "+name);

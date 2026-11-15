@@ -17,7 +17,7 @@ namespace AISwitchDesk
 
 		private const int NormWidth = 58;
 
-		private const int NormHeight = 292;
+		private const int NormHeight = RailArt.NormHeight;
 
 		private const int FoldHeight = 56;
 
@@ -25,7 +25,7 @@ namespace AISwitchDesk
 
 		private const int ExpandedFoldTop = NormHeight - 32;
 
-		private static readonly int[] ButtonTop = { 21, 67, 121, 166, 211 };
+		private static readonly int[] ButtonTop = RailArt.ButtonTop;
 
 		private readonly ClientWindow[] clients = new ClientWindow[2]
 		{
@@ -67,6 +67,9 @@ namespace AISwitchDesk
 		private readonly Stopwatch selectionClock = new Stopwatch();
 		private float selectionStart;
 		private float selectionPosition;
+		// The marker's trailing end. It follows selectionPosition, so the marker stretches as it moves.
+		private float selectionTailStart;
+		private float selectionTail;
 
 		private readonly RelayPump relay;
 
@@ -276,7 +279,7 @@ namespace AISwitchDesk
 			};
 			base.KeyPreview = true;
 			SetStyle(ControlStyles.UserPaint | ControlStyles.Opaque | ControlStyles.AllPaintingInWmPaint, true);
-			string[] labels = { "ChatGPT", "Claude", "并排对照", "套餐用量", "设置", "收起侧栏" };
+			string[] labels = { "ChatGPT", "Claude", "并排对照", "同时提问", "套餐用量", "设置", "收起侧栏" };
 			for (int i = 0; i < buttons.Length; i++)
 			{
 				RailButton railButton = new RailButton((RailAction)i, labels[i]);
@@ -320,6 +323,11 @@ namespace AISwitchDesk
 				BeginInvoke((Action)delegate { QueueFiles((int)RailAction.Compare, paths, false); });
 			};
 			compareButton.ContextRequested += delegate { OpenFileQueue(); };
+			buttons[(int)RailAction.Ask].Click += delegate
+			{
+				OpenAsk();
+			};
+			tips.SetToolTip(buttons[(int)RailAction.Ask], "同时提问 · 一段话发到 ChatGPT 和 Claude 当前的对话");
 			buttons[(int)RailAction.Usage].Click += delegate
 			{
 				OpenUsage();
@@ -362,11 +370,17 @@ namespace AISwitchDesk
 			{
 			}
 			LoadPosition();
+			selectionPosition = selectionTail = selected;
 			selectionMotion.Tick += delegate
 			{
-				float t = RailMotion.Enabled ? Math.Min(1f, selectionClock.ElapsedMilliseconds / 180f) : 1f;
-				selectionPosition = selectionStart + (selected - selectionStart) * RailMotion.SmoothStep(t);
-				if (t >= 1f) selectionMotion.Stop();
+				float t = RailMotion.Enabled ? Math.Min(1f, selectionClock.ElapsedMilliseconds / (1000f * RailArt.MarkerSeconds)) : 1f;
+				selectionPosition = selectionStart + (selected - selectionStart) * Ease.OutCubic(t);
+				selectionTail = selectionTailStart + (selected - selectionTailStart) * Ease.InOutCubic(t);
+				if (t >= 1f)
+				{
+					selectionPosition = selectionTail = selected;
+					selectionMotion.Stop();
+				}
 				InvalidateSelection();
 			};
 			expansion = ((!collapsed) ? 1 : 0);
@@ -379,6 +393,7 @@ namespace AISwitchDesk
 			{
 				Tick();
 			};
+			InitializeTray();
 		}
 
 		private int P(double n)
@@ -480,6 +495,14 @@ namespace AISwitchDesk
 				LayoutRail();
 				KeepOnScreen();
 				SetSelected(selected);
+				if (StartInTray)
+				{
+					// Started at sign-in to sit in the tray: set up, but stay hidden.
+					StartInTray = false;
+					base.SetVisibleCore(false);
+					poll.Start();
+					return;
+				}
 			}
 			base.SetVisibleCore(value);
 		}
@@ -569,39 +592,17 @@ namespace AISwitchDesk
 			Glass.PaintRail(e.Graphics, base.ClientRectangle, -SurfaceTop, SurfaceHeight, glass, delegate(Graphics g)
 			{
 				g.TranslateTransform(0f, SurfaceTop);
-				g.SmoothingMode = SmoothingMode.AntiAlias;
-				var theme = DeskTheme.Current;
-				float line = Math.Max(1f, P(100) / 100f);
-				var outline = new RectangleF(line / 2f, line / 2f, Width - line, SurfaceHeight - line);
-				using (var path = RailButton.Rounded(outline, P(CornerRadius) - line / 2f))
-				using (var sheen = new LinearGradientBrush(outline, Color.FromArgb(86, theme.Ink), Color.FromArgb(34, theme.Muted), 72f))
-				using (var edge = new Pen(sheen, line))
-					g.DrawPath(edge, path);
-				float visible = RailMotion.SmoothStep((expansion - 0.65f) / 0.35f);
-				if (visible > 0f)
-				{
-					float center = P(ButtonTop[0] + 21.5 + (ButtonTop[1] - ButtonTop[0]) * selectionPosition);
-					using (var marker = new Pen(Color.FromArgb((int)(visible * 255), theme.AccentLine), P(2)))
-					{
-						marker.StartCap = marker.EndCap = LineCap.Round;
-						g.DrawLine(marker, P(4), center - P(5), P(4), center + P(5));
-					}
-				}
-				PaintTransferTrail(g);
-				using (Pen pen = new Pen(Color.FromArgb(170, DeskTheme.Current.Muted), P(2.0)))
-				{
-					LineCap startCap = (pen.EndCap = LineCap.Round);
-					pen.StartCap = startCap;
-					g.DrawLine(pen, base.Width / 2 - P(6.0), P(11.0), base.Width / 2 + P(6.0), P(11.0));
-				}
-				float num = RailMotion.SmoothStep((expansion - 0.56f) / 0.18f);
-				if (num > 0f)
-				{
-					using (Pen pen2 = new Pen(Color.FromArgb((int)(num * 70f), DeskTheme.Current.Muted), 1f))
-					{
-						g.DrawLine(pen2, P(16.0), P(115.0), base.Width - P(16.0), P(115.0));
-					}
-				}
+				RailLook look = new RailLook();
+				look.Width = base.Width;
+				look.SurfaceHeight = SurfaceHeight;
+				look.Expansion = expansion;
+				look.SelectionPosition = selectionPosition;
+				look.SelectionTail = selectionTail;
+				look.TrailFrom = trailFrom;
+				look.TrailTo = trailTo;
+				look.TravelPhase = travelPhase;
+				look.P = P;
+				RailArt.Surface(g, look);
 			}, P(CornerRadius), backdrop != null);
 		}
 
@@ -637,6 +638,7 @@ namespace AISwitchDesk
 			}
 			CloseExitMenu();
 			HideSettings();
+			HideAsk();
 			usagePopup.Close();
 			collapsed = !collapsed;
 			UpdateFoldLabel();
@@ -809,6 +811,26 @@ namespace AISwitchDesk
 				m.Result = (IntPtr)3;
 				return;
 			}
+			if (m.Msg == ShowRailMessage)
+			{
+				ShowRail();
+				return;
+			}
+			// Right-click on the rail itself (buttons without their own menu pass it up).
+			if (m.Msg == 123 && ready)
+			{
+				int at = (int)m.LParam.ToInt64();
+				ShowRailMenu(at == -1 ? PointToScreen(new Point(base.Width / 2, SurfaceTop + P(20.0))) : new Point(at));
+				m.Result = IntPtr.Zero;
+				return;
+			}
+			// The system's minimize command puts the rail in the tray.
+			if (m.Msg == 274 && (m.WParam.ToInt64() & 0xFFF0) == 0xF020 && ready)
+			{
+				HideToTray();
+				m.Result = IntPtr.Zero;
+				return;
+			}
 			if (m.Msg == 786 && ready)
 			{
 				int num = m.WParam.ToInt32() - 1040;
@@ -876,6 +898,7 @@ namespace AISwitchDesk
 			{
 				selected = index;
 				selectionStart = selectionPosition;
+				selectionTailStart = selectionTail;
 				if (Visible && !collapsed && RailMotion.Enabled)
 				{
 					selectionClock.Restart();
@@ -884,7 +907,7 @@ namespace AISwitchDesk
 				else
 				{
 					selectionMotion.Stop();
-					selectionPosition = index;
+					selectionPosition = selectionTail = index;
 					InvalidateSelection();
 				}
 			}
@@ -1123,6 +1146,12 @@ namespace AISwitchDesk
 			DropTrace.Write(index < 2 ? clients[index].Name : "helper", "notice " + text);
 			if (!closing)
 			{
+				// With the rail in the tray, the note comes from the tray icon instead.
+				if (!Visible)
+				{
+					TrayNotice(text);
+					return;
+				}
 				RailButton railButton = buttons[collapsed ? (int)RailAction.Fold : index];
 				tips.Show(text, railButton, railButton.Width + 5, 0, 4200);
 			}
@@ -1133,6 +1162,7 @@ namespace AISwitchDesk
 			if (!closing)
 			{
 				HideSettings();
+				HideAsk();
 				usagePopup.Close();
 				if (exitMenu == null)
 				{
@@ -1275,6 +1305,7 @@ namespace AISwitchDesk
 		{
 			CloseExitMenu();
 			HideSettings();
+			HideAsk();
 			if (usagePopup.Visible)
 			{
 				usagePopup.Close();
@@ -1332,6 +1363,8 @@ namespace AISwitchDesk
 			if (settings != null) settings.ApplyTheme();
 			if (dropTargets != null) dropTargets.ApplyTheme();
 			if (exitMenu != null) exitMenu.ApplyTheme();
+			if (askBox != null) askBox.ApplyTheme();
+			ApplyTrayTheme();
 			usagePopup.ApplyTheme();
 			if (usagePopup.Visible) usagePopup.Display(QuotaTitle, usage[selected], dpi);
 			return true;
@@ -1408,6 +1441,7 @@ namespace AISwitchDesk
 				return;
 			}
 			CloseExitMenu();
+			HideAsk();
 			if (SettingsOpen)
 			{
 				settings.Hide();
@@ -1490,8 +1524,13 @@ namespace AISwitchDesk
 			{
 				exitMenu.Dispose();
 			}
+			if (askBox != null)
+			{
+				askBox.Dispose();
+			}
 			usagePopup.Close();
 			SavePosition();
+			DisposeTray();
 			base.OnFormClosing(e);
 		}
 
@@ -1499,6 +1538,7 @@ namespace AISwitchDesk
 		{
 			if (disposing)
 			{
+				DisposeTray();
 				usage[0].Changed -= UsageChanged;
 				usage[1].Changed -= UsageChanged;
 				foldMotion.Dispose();

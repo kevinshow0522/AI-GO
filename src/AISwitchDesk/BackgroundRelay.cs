@@ -322,10 +322,11 @@ namespace AISwitchDesk
 				{
 					if (DateTime.UtcNow >= nextPrune)
 					{
-						nextPrune = DateTime.UtcNow.AddHours(6.0);
+						// Every minute, so a paused handoff leaves soon after its ten minutes.
+						nextPrune = DateTime.UtcNow.AddMinutes(1.0);
 						try
 						{
-							RelayStore.Prune(TimeSpan.FromDays(30.0));
+							RelayStore.Prune(TimeSpan.FromDays(30.0), TimeSpan.FromMinutes(10.0));
 						}
 						catch (Exception ex4)
 						{

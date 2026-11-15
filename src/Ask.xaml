@@ -1,0 +1,90 @@
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="AI 双窗 · 同时提问" WindowStartupLocation="Manual" WindowStyle="None" Topmost="True"
+        ResizeMode="NoResize" ShowInTaskbar="False" AllowsTransparency="True" Background="Transparent"
+        Width="344" Height="214" FontFamily="Segoe UI Variable Text, Microsoft YaHei UI, Segoe UI"
+        FontSize="13" Foreground="{DynamicResource ThemeInk}" UseLayoutRounding="True" SnapsToDevicePixels="True">
+  <Window.Resources>
+    <Style x:Key="{x:Static SystemParameters.FocusVisualStyleKey}" TargetType="Control">
+      <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Control">
+        <Border IsHitTestVisible="False" Margin="1" CornerRadius="6" BorderThickness="1.5" BorderBrush="{DynamicResource ThemeAccentLine}"/>
+      </ControlTemplate></Setter.Value></Setter>
+    </Style>
+    <Style TargetType="ScrollBar">
+      <Setter Property="Width" Value="8"/><Setter Property="MinWidth" Value="8"/><Setter Property="Background" Value="Transparent"/>
+      <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ScrollBar">
+        <Grid Background="Transparent">
+          <Track x:Name="PART_Track" IsDirectionReversed="True">
+            <Track.Thumb><Thumb><Thumb.Template><ControlTemplate TargetType="Thumb">
+              <Border Margin="2,1,1,1" CornerRadius="2.5" Opacity=".45" Background="{DynamicResource ThemeMuted}"/>
+            </ControlTemplate></Thumb.Template></Thumb></Track.Thumb>
+          </Track>
+        </Grid>
+      </ControlTemplate></Setter.Value></Setter>
+    </Style>
+  </Window.Resources>
+  <Border Name="Surface" Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeRule}" BorderThickness="1" CornerRadius="14" Padding="14,11,14,12">
+    <Grid>
+      <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+      <DockPanel LastChildFill="False">
+        <TextBlock Text="同时提问" FontWeight="SemiBold" FontSize="14" VerticalAlignment="Center"/>
+        <TextBlock Text="发到两边当前的对话" Margin="8,1,0,0" FontSize="12" Foreground="{DynamicResource ThemeMuted}" VerticalAlignment="Center"/>
+      </DockPanel>
+      <Grid Grid.Row="1" Margin="0,9,0,9">
+        <TextBox Name="Prompt" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
+                 AutomationProperties.Name="要同时发给 ChatGPT 和 Claude 的内容" Foreground="{DynamicResource ThemeInk}"
+                 CaretBrush="{DynamicResource ThemeInk}" FocusVisualStyle="{x:Null}" Padding="9,7">
+          <TextBox.Template><ControlTemplate TargetType="TextBox">
+            <Border x:Name="box" CornerRadius="9" BorderThickness="1" BorderBrush="{DynamicResource ThemeRule}" Background="{DynamicResource ThemeControl}">
+              <ScrollViewer x:Name="PART_ContentHost" Margin="0" Padding="{TemplateBinding Padding}"/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="box" Property="BorderBrush" Value="{DynamicResource ThemeAccentLine}"/></Trigger>
+              <Trigger Property="IsEnabled" Value="False"><Setter TargetName="box" Property="Opacity" Value=".6"/></Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate></TextBox.Template>
+        </TextBox>
+        <TextBlock Name="Hint" IsHitTestVisible="False" Margin="12,8,12,0" Foreground="{DynamicResource ThemeMuted}"
+                   Text="输入问题，Enter 发送，Shift+Enter 换行"/>
+      </Grid>
+      <TextBlock Name="Status" Grid.Row="2" Margin="1,0,0,8" FontSize="12" TextWrapping="Wrap"
+                 Foreground="{DynamicResource ThemeMuted}" Visibility="Collapsed"/>
+      <DockPanel Grid.Row="3" LastChildFill="False">
+        <CheckBox Name="Arrange" IsChecked="True" Cursor="Hand" VerticalAlignment="Center" Foreground="{DynamicResource ThemeInk}" FontSize="12">
+          <CheckBox.Template><ControlTemplate TargetType="CheckBox">
+            <StackPanel Orientation="Horizontal" Background="Transparent">
+              <Border x:Name="tick" Width="16" Height="16" CornerRadius="4.5" BorderThickness="1.2"
+                      BorderBrush="{DynamicResource ThemeMuted}" Background="Transparent">
+                <Path x:Name="mark" Data="M 3.6,8 L 6.6,10.8 L 12,5.2" Stroke="{DynamicResource ThemeOnAccent}" StrokeThickness="1.6"
+                      StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Visibility="Hidden"/>
+              </Border>
+              <ContentPresenter Margin="7,0,0,0" VerticalAlignment="Center"/>
+            </StackPanel>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsChecked" Value="True">
+                <Setter TargetName="tick" Property="Background" Value="{DynamicResource ThemeAccent}"/>
+                <Setter TargetName="tick" Property="BorderBrush" Value="{DynamicResource ThemeAccent}"/>
+                <Setter TargetName="mark" Property="Visibility" Value="Visible"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate></CheckBox.Template>
+          发送后并排显示
+        </CheckBox>
+        <Button Name="Send" DockPanel.Dock="Right" Cursor="Hand" IsDefault="False" Padding="16,5"
+                AutomationProperties.Name="发送到两边" Foreground="{DynamicResource ThemeOnAccent}">
+          <Button.Template><ControlTemplate TargetType="Button">
+            <Border x:Name="pill" CornerRadius="12" Background="{DynamicResource ThemeAccent}" Padding="{TemplateBinding Padding}">
+              <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="pill" Property="Opacity" Value=".9"/></Trigger>
+              <Trigger Property="IsPressed" Value="True"><Setter TargetName="pill" Property="Opacity" Value=".78"/></Trigger>
+              <Trigger Property="IsEnabled" Value="False"><Setter TargetName="pill" Property="Opacity" Value=".4"/></Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate></Button.Template>
+          <TextBlock Name="SendLabel" Text="发送到两边" FontWeight="SemiBold"/>
+        </Button>
+      </DockPanel>
+    </Grid>
+  </Border>
+</Window>

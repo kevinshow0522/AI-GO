@@ -10,8 +10,17 @@ function Get-InstalledProcesses {
         Where-Object { $_.ExecutablePath -eq $installPath }
 }
 
+# The interactive sidebar: started with no arguments, or with --tray at sign-in.
+# The background worker and the MCP servers run the same file with other arguments.
+function Test-Sidebar($process) {
+    $line = $process.CommandLine.Trim()
+    $rest = if ($line.StartsWith('"')) { $line.Substring($line.IndexOf('"', 1) + 1) } else { $line.Substring([Math]::Min($line.Length, $installPath.Length)) }
+    $rest = $rest.Trim()
+    return $rest -eq '' -or $rest -eq '--tray'
+}
+
 function Stop-Sidebar {
-    foreach ($app in (Get-InstalledProcesses | Where-Object { $_.CommandLine.Trim().Trim('"') -eq $installPath })) {
+    foreach ($app in (Get-InstalledProcesses | Where-Object { Test-Sidebar $_ })) {
         $process = Get-Process -Id $app.ProcessId -ErrorAction SilentlyContinue
         if ($process -and !$process.HasExited) {
             # WM_CLOSE lets the sidebar checkpoint uploads and restore compared windows.
@@ -39,7 +48,7 @@ function Start-Sidebar {
     $timer = [Diagnostics.Stopwatch]::StartNew()
     do {
         $apps = @(Get-InstalledProcesses)
-        $ui = $apps | Where-Object { $_.CommandLine.Trim().Trim('"') -eq $installPath } | Select-Object -First 1
+        $ui = $apps | Where-Object { Test-Sidebar $_ } | Select-Object -First 1
         if ($ui -and ($apps | Where-Object { $_.CommandLine -match '\s--background\s*$' })) {
             $window = Get-Process -Id $ui.ProcessId -ErrorAction SilentlyContinue
             if ($window -and $window.MainWindowHandle -ne 0 -and $window.Responding) { return }

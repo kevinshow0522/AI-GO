@@ -1,0 +1,56 @@
+name: release
+
+# Pushing a version tag builds the sidebar and publishes it as a GitHub
+# release. The tag must match the version in src/Properties/AssemblyInfo.cs:
+#
+#   git tag v3.6.0
+#   git push origin v3.6.0
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the sidebar
+        shell: powershell
+        run: .\build.ps1
+
+      - name: Check the tag against the built version
+        shell: powershell
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          $built = (Get-Item build\AISwitchDesk.exe).VersionInfo.FileVersion
+          $wanted = $env:TAG.TrimStart('v')
+          if (!($built -eq $wanted -or $built -eq "$wanted.0")) {
+            throw "Tag $env:TAG does not match the built version $built. Update AssemblyInfo.cs or the tag."
+          }
+          "VERSION=$wanted" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Package
+        shell: powershell
+        run: |
+          $hash = (Get-FileHash build\AISwitchDesk.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  AISwitchDesk.exe" | Out-File -FilePath build\SHA256SUMS.txt -Encoding ascii
+
+      - name: Publish the release
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          $notes = @"
+          下载 ``AISwitchDesk.exe``，放到任意文件夹运行即可；已经装过的话，用仓库里的 ``deploy.ps1`` 更新，它会备份旧版本。
+
+          ``SHA256SUMS.txt`` 是文件校验值。
+          "@
+          gh release create $env:TAG build\AISwitchDesk.exe build\SHA256SUMS.txt --title "AI 双窗 $env:VERSION" --notes $notes --generate-notes --verify-tag

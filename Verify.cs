@@ -28,6 +28,26 @@ class Verify
             Check(controls.Any(n=>n.LocalName==control.LocalName && n.GetAttribute("Name")==control.GetAttribute("Name")),
                 name+" keeps "+control.GetAttribute("Name"));
     }
+    // The folded-rail mark is drawn as a tinted shape, so only its transparency matters:
+    // a solid half, a lighter half, and empty corners.
+    static void CheckDeskMark(Assembly app)
+    {
+        using(var stream=app.GetManifestResourceStream("desk-mark.png"))
+        using(var mark=new System.Drawing.Bitmap(stream))
+        {
+            int side=mark.Width, solid=0, light=0;
+            Check(side==mark.Height && side>=96,"full-size square folded mark");
+            for(int y=0;y<side;y++)
+                for(int x=0;x<side;x++)
+                {
+                    int a=mark.GetPixel(x,y).A;
+                    if(a>230) solid++;
+                    else if(a>70 && a<190) light++;
+                }
+            Check(mark.GetPixel(0,0).A==0 && mark.GetPixel(side-1,side-1).A==0,"folded mark has clear corners");
+            Check(solid>side*side*.12 && light>side*side*.12,"folded mark shows two tones");
+        }
+    }
     static void CheckComparisonMark(Assembly app)
     {
         using(var stream=app.GetManifestResourceStream("compare-mark.png"))
@@ -61,9 +81,10 @@ class Verify
                 if (name == "Settings.xaml")
                     Check(ResourceText(newApp,name).Contains("在侧栏也可并排或还原窗口"), "settings sidebar hint");
             }
-            else if(name!="compare-mark.png") Check(Hash(oldApp.GetManifestResourceStream(name)) == Hash(newApp.GetManifestResourceStream(name)), "resource: " + name);
+            else if(name!="compare-mark.png" && name!="desk-mark.png") Check(Hash(oldApp.GetManifestResourceStream(name)) == Hash(newApp.GetManifestResourceStream(name)), "resource: " + name);
         }
         CheckComparisonMark(newApp);
+        CheckDeskMark(newApp);
         foreach (var oldType in oldApp.GetTypes().Where(t => !t.IsNested && t.Namespace == "AISwitchDesk"))
             Check(newApp.GetType(oldType.FullName) != null, "type: " + oldType.FullName);
         var method = newApp.GetType("AISwitchDesk.ChatUi").GetMethod("NewDraftState", BindingFlags.Static | BindingFlags.NonPublic);

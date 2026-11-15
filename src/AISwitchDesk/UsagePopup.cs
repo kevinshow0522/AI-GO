@@ -28,6 +28,9 @@ namespace AISwitchDesk
 
 		private readonly List<Label> labels = new List<Label>();
 
+		// Each allowance row gets a bar: where it sits, and the remaining percentage (below 0 when unknown).
+		private readonly List<KeyValuePair<RectangleF, double>> bars = new List<KeyValuePair<RectangleF, double>>();
+
 		private PlanReport lastReport;
 
 		private string lastTitle;
@@ -97,6 +100,18 @@ namespace AISwitchDesk
 				e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
 				using (var path = RailButton.Rounded(new RectangleF(.5f, .5f, card.Width - 1f, card.Height - 1f), Math.Max(1, Px(15))))
 				using (var edge = new Pen(DeskTheme.Current.Rule)) e.Graphics.DrawPath(edge, path);
+				foreach (var bar in bars)
+				{
+					using (var track = RailButton.Rounded(bar.Key, bar.Key.Height / 2f))
+					using (var empty = new SolidBrush(DeskTheme.Mix(DeskTheme.Current.Surface, DeskTheme.Current.Ink, .11)))
+						e.Graphics.FillPath(empty, track);
+					if (bar.Value <= 0.0) continue;
+					var filled = bar.Key;
+					filled.Width = Math.Max(filled.Height, filled.Width * (float)Math.Min(1.0, bar.Value / 100.0));
+					using (var level = RailButton.Rounded(filled, filled.Height / 2f))
+					using (var accent = new SolidBrush(DeskTheme.Current.AccentLine))
+						e.Graphics.FillPath(accent, level);
+				}
 			};
 			ApplyTheme();
 		}
@@ -105,10 +120,10 @@ namespace AISwitchDesk
 		{
 			var theme = DeskTheme.Current;
 			BackColor = card.BackColor = theme.Surface;
-			refreshButton.BackColor = theme.Control;
+			refreshButton.BackColor = theme.Hover;
 			refreshButton.ForeColor = theme.Ink;
-			refreshButton.FlatAppearance.MouseOverBackColor = theme.Hover;
-			refreshButton.FlatAppearance.MouseDownBackColor = theme.Selected;
+			refreshButton.FlatAppearance.MouseOverBackColor = theme.Selected;
+			refreshButton.FlatAppearance.MouseDownBackColor = DeskTheme.Mix(theme.Control, theme.Ink, .18);
 			lastDpi = 0;
 		}
 
@@ -167,6 +182,7 @@ namespace AISwitchDesk
 					label.Dispose();
 				}
 				labels.Clear();
+				bars.Clear();
 				Line(title + " · 套餐用量", titleFont, Ink, 0, 6);
 				if (report.Rows != null && report.Rows.Count > 0)
 				{
@@ -174,6 +190,9 @@ namespace AISwitchDesk
 					{
 						string text = slot.Amount(item, CultureInfo.CurrentCulture);
 						Line(item.Window + "    " + text, bodyFont, Ink, 3, 0);
+						y += Px(3);
+						bars.Add(new KeyValuePair<RectangleF, double>(new RectangleF(side, y, width - side * 2, Px(4)), slot.Expired(item) ? -1.0 : item.Remaining));
+						y += Px(4) + Px(3);
 						Line(slot.ResetLine(item), smallFont, Muted, 0, 6);
 					}
 				}
@@ -220,6 +239,7 @@ namespace AISwitchDesk
 			finally
 			{
 				card.ResumeLayout(false);
+				card.Invalidate();
 				ResumeLayout(false);
 			}
 		}

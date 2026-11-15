@@ -19,6 +19,24 @@
       <Setter Property="FocusVisualStyle" Value="{StaticResource {x:Static SystemParameters.FocusVisualStyleKey}}"/>
     </Style>
     <Style TargetType="ListBox" BasedOn="{StaticResource SettingsControl}"/>
+    <Style TargetType="ScrollBar">
+      <Setter Property="Width" Value="8"/><Setter Property="MinWidth" Value="8"/><Setter Property="Background" Value="Transparent"/>
+      <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ScrollBar">
+        <Grid Background="Transparent">
+          <Track x:Name="PART_Track" IsDirectionReversed="True">
+            <Track.Thumb><Thumb>
+              <Thumb.Template><ControlTemplate TargetType="Thumb">
+                <Border x:Name="bar" Margin="2,1,1,1" CornerRadius="2.5" Opacity=".4" Background="{DynamicResource ThemeMuted}"/>
+                <ControlTemplate.Triggers>
+                  <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="bar" Property="Opacity" Value=".75"/></Trigger>
+                  <Trigger Property="IsDragging" Value="True"><Setter TargetName="bar" Property="Opacity" Value=".9"/></Trigger>
+                </ControlTemplate.Triggers>
+              </ControlTemplate></Thumb.Template>
+            </Thumb></Track.Thumb>
+          </Track>
+        </Grid>
+      </ControlTemplate></Setter.Value></Setter>
+    </Style>
     <Style TargetType="ScrollViewer" BasedOn="{StaticResource SettingsControl}"/>
     <Style x:Key="CloseFocus" TargetType="Control">
       <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Control">
@@ -78,7 +96,7 @@
         </Border>
         <ControlTemplate.Triggers>
           <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="pill" Property="Background" Value="{DynamicResource ThemeHover}"/></Trigger>
-          <Trigger Property="IsChecked" Value="True"><Setter TargetName="pill" Property="Background" Value="{DynamicResource ThemeSelected}"/><Setter Property="FontWeight" Value="SemiBold"/></Trigger>
+          <Trigger Property="IsChecked" Value="True"><Setter TargetName="pill" Property="Background" Value="{DynamicResource ThemeAccent}"/><Setter Property="Foreground" Value="{DynamicResource ThemeOnAccent}"/><Setter Property="FontWeight" Value="SemiBold"/></Trigger>
         </ControlTemplate.Triggers>
       </ControlTemplate></Setter.Value></Setter>
     </Style>
@@ -192,12 +210,15 @@
           <ColumnDefinition Width="Auto"/>
           <ColumnDefinition Width="Auto"/>
           <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="Auto"/>
+          <ColumnDefinition Width="Auto"/>
         </Grid.ColumnDefinitions>
-        <Border Grid.ColumnSpan="4" Height="1" Background="{DynamicResource ThemeRule}" VerticalAlignment="Bottom"/>
+        <Border Grid.ColumnSpan="6" Height="1" Background="{DynamicResource ThemeRule}" VerticalAlignment="Bottom"/>
         <RadioButton Name="UseTab" GroupName="Pages" Style="{StaticResource Tab}" Content="套餐用量" Margin="0,0,22,0"/>
         <RadioButton Name="LogTab" Grid.Column="1" GroupName="Pages" Style="{StaticResource Tab}" Content="自动转发" Margin="0,0,22,0"/>
         <RadioButton Name="QueueTab" Grid.Column="2" GroupName="Pages" Style="{StaticResource Tab}" Content="文件队列"/>
-        <RadioButton Name="AppearanceTab" Grid.Column="3" HorizontalAlignment="Right" GroupName="Pages"
+        <RadioButton Name="GeneralTab" Grid.Column="4" GroupName="Pages" Style="{StaticResource Tab}" Content="常规" Margin="0,0,22,0"/>
+        <RadioButton Name="AppearanceTab" Grid.Column="5" GroupName="Pages"
                      Style="{StaticResource Tab}" Content="外观" IsChecked="True"/>
       </Grid>
       <Grid Grid.Row="2" Margin="0,12,0,7">
@@ -221,6 +242,27 @@
             <UniformGrid Name="AccentChoices" Rows="1" Columns="6" Margin="-2,0,-2,0"
                          AutomationProperties.Name="强调色" KeyboardNavigation.DirectionalNavigation="Contained"/>
           </StackPanel>
+        </Grid>
+        <Grid Name="GeneralPage" Visibility="Collapsed">
+          <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition/></Grid.RowDefinitions>
+          <StackPanel>
+            <CheckBox Name="StartWithWindows" Style="{StaticResource Switch}" Content="开机时启动侧栏" FontSize="14" FontWeight="SemiBold"/>
+            <TextBlock Name="StartWithWindowsNote" Margin="0,4,0,0" Style="{StaticResource Caption}" TextWrapping="Wrap"
+                       Text="登录 Windows 后自动打开侧栏。"/>
+            <CheckBox Name="StartInTray" Margin="0,9,0,0" Style="{StaticResource Switch}" Content="开机时只放到托盘"/>
+          </StackPanel>
+          <DockPanel Grid.Row="1" Margin="0,11,0,4" LastChildFill="False">
+            <Border DockPanel.Dock="Top" Height="1" Margin="0,0,0,9" Background="{DynamicResource ThemeRule}"/>
+            <TextBlock Text="连接检查" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center"/>
+            <TextBlock Name="CheckTime" Margin="9,1,0,0" Style="{StaticResource Caption}"/>
+            <Button Name="RunCheck" DockPanel.Dock="Right" Style="{StaticResource Quiet}" Content="重新检查" Padding="8,2"/>
+          </DockPanel>
+          <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,0,5,0">
+            <StackPanel>
+              <StackPanel Name="GptCheck" Margin="0,2,0,8"/>
+              <StackPanel Name="ClaudeCheck"/>
+            </StackPanel>
+          </ScrollViewer>
         </Grid>
         <Grid Name="UsePage" Visibility="Collapsed">
           <Grid.RowDefinitions><RowDefinition/><RowDefinition Height="35"/><RowDefinition Height="36"/></Grid.RowDefinitions>
@@ -317,7 +359,10 @@
             <TextBlock Name="CompareLabel" Text="并排对照" Margin="5,0,0,0" VerticalAlignment="Center"/>
           </StackPanel>
         </Button>
-        <Button Name="ExitRail" Style="{StaticResource Quiet}" Content="退出侧栏" Padding="5,3" HorizontalAlignment="Right" VerticalAlignment="Bottom"/>
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Bottom">
+          <Button Name="HideToTray" Style="{StaticResource Quiet}" Content="隐藏" Padding="5,3" ToolTip="把侧栏收到托盘里，点托盘图标可以再打开"/>
+          <Button Name="ExitRail" Style="{StaticResource Quiet}" Content="退出侧栏" Padding="5,3"/>
+        </StackPanel>
       </Grid>
     </Grid>
   </Border>

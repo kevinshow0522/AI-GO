@@ -8,12 +8,10 @@ using System.Windows.Forms;
 
 namespace AISwitchDesk
 {
-    internal enum TransferMark { None, Waiting, Working, Success, Attention }
-
     internal sealed partial class DeskForm
     {
         private const double SuccessSeconds = 2.4;
-        private readonly Timer transferMotion = new Timer { Interval = 35 };
+        private readonly Timer transferMotion = new Timer { Interval = 16 };
         private readonly Stopwatch transferClock = Stopwatch.StartNew();
         private readonly double[] successUntil = new double[2];
         private readonly int[] waiting = new int[2], issues = new int[2];
@@ -93,7 +91,8 @@ namespace AISwitchDesk
             int adding = active != null && active.Entries.Any(e => e.State == UploadState.Adding) ? active.Destination.Client : -1;
             trailTo = adding >= 0 && active.Destination.FromCompare ? adding : relayTarget;
             trailFrom = trailTo < 0 ? -1 : adding >= 0 && active.Destination.FromCompare ? (int)RailAction.Compare : 1 - relayTarget;
-            travelPhase = animate ? (float)(now / 1.05 % 1) : 0.63f;
+            travelPhase = animate ? (float)(now / RailArt.TravelSeconds % 1) : 0.45f;
+            float pulse = animate ? (float)(now / 1.2 % 1) : 0f;
             bool needsFrames = trailTo >= 0;
             for (int i = 0; i < 2; i++)
             {
@@ -106,8 +105,10 @@ namespace AISwitchDesk
                 var button = buttons[i];
                 bool changed = button.Feedback != mark;
                 button.Feedback = mark;
-                button.FeedbackPhase = mark == TransferMark.Success ?
-                    (animate ? (float)Math.Min(1, (now + SuccessSeconds - successUntil[i]) / .24) : 1f) : travelPhase;
+                double landed = now + SuccessSeconds - successUntil[i];
+                button.FeedbackPhase = mark == TransferMark.Success ? (animate ? (float)Math.Min(1, landed / .32) : 1f) : pulse;
+                button.FeedbackAge = mark == TransferMark.Success && animate ? (float)landed : 0f;
+                button.FeedbackFade = mark == TransferMark.Success && animate ? (float)Math.Min(1, (successUntil[i] - now) / .3) : 1f;
                 if (changed || ((mark == TransferMark.Working || mark == TransferMark.Success) && animate)) button.Invalidate();
                 if (changed)
                     button.AccessibleDescription = mark == TransferMark.Attention ? "文件待重试，可在文件队列中查看" :
@@ -120,30 +121,12 @@ namespace AISwitchDesk
             bool expires = successUntil.Any(t => t > now);
             if ((animate && needsFrames && !collapsed) || expires)
             {
-                int interval = animate && !collapsed ? 35 : 220;
+                int interval = animate && !collapsed ? 16 : 220;
                 if (transferMotion.Interval != interval) transferMotion.Interval = interval;
                 if (!transferMotion.Enabled) transferMotion.Start();
             }
             else transferMotion.Stop();
         }
 
-        private void PaintTransferTrail(Graphics g)
-        {
-            if (trailTo < 0 || expansion < .94f) return;
-            float x = Width - P(4.0);
-            float from = P(ButtonTop[trailFrom] + 21.5), to = P(ButtonTop[trailTo] + 21.5);
-            float direction = Math.Sign(to - from);
-            float y = from + (to - from) * travelPhase;
-            var color = DeskTheme.Current.AccentLine;
-            using (var track = new Pen(Color.FromArgb(85, color), P(1)))
-            using (var dash = new Pen(color, P(2)))
-            {
-                dash.StartCap = dash.EndCap = LineCap.Round;
-                g.DrawLine(track, x, from, x, to);
-                g.DrawLine(dash, x, y - P(4) * direction, x, y);
-                g.DrawLine(dash, x - P(2), y - P(2) * direction, x, y);
-                g.DrawLine(dash, x + P(2), y - P(2) * direction, x, y);
-            }
-        }
     }
 }
