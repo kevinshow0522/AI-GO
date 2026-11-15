@@ -515,7 +515,7 @@ namespace AISwitchDesk
 
 		private void Page(string name)
 		{
-			string[] array = { "AppearancePage", "UsePage", "LogPage", "QueuePage" };
+			string[] array = { "AppearancePage", "GeneralPage", "UsePage", "LogPage", "QueuePage" };
 			foreach (string text in array)
 			{
 				Control<Grid>(text).Visibility = ((!(text == name)) ? Visibility.Collapsed : Visibility.Visible);
