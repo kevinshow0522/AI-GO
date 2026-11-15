@@ -139,7 +139,8 @@ internal static class WindowShots
                     foreach (string page in new[] { "Appearance", "Use", "Log", "Queue", "General" })
                     {
                         ((Wpf.Controls.RadioButton)window.FindName(page + "Tab")).IsChecked = true;
-                        Pump(450);
+                        // The general page runs the connection check when it opens.
+                        Pump(page == "General" ? 4000 : 450);
                         Save(window, "settings-" + page.ToLowerInvariant() + "-" + tag);
                     }
                     call("OpenSettings", null);

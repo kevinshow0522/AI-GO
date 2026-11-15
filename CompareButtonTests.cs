@@ -462,7 +462,7 @@ internal static class CompareButtonTests
     {
         var outline=window.Resources[System.Windows.SystemParameters.FocusVisualStyleKey] as System.Windows.Style;
         Check(outline!=null,"settings still use the Windows dotted focus visual");
-        string[] controls={"UseTab","LogTab","QueueTab","GeneralTab","AppearanceTab","StartWithWindows","Alert20","Refresh","AutoSend","LogList",
+        string[] controls={"UseTab","LogTab","QueueTab","GeneralTab","AppearanceTab","StartWithWindows","RunCheck","Alert20","Refresh","AutoSend","LogList",
             "Resume","ClearUploads","OriginalAccent","Smaller","Larger","Compare","ExitRail"};
         foreach(string name in controls)
             Check(((System.Windows.Controls.Control)window.FindName(name)).FocusVisualStyle==outline,"focus style on "+name);

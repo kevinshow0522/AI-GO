@@ -243,11 +243,24 @@
           </StackPanel>
         </Grid>
         <Grid Name="GeneralPage" Visibility="Collapsed">
+          <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition/></Grid.RowDefinitions>
           <StackPanel>
             <CheckBox Name="StartWithWindows" Style="{StaticResource Switch}" Content="开机时启动侧栏" FontSize="14" FontWeight="SemiBold"/>
             <TextBlock Name="StartWithWindowsNote" Margin="0,4,0,0" Style="{StaticResource Caption}" TextWrapping="Wrap"
                        Text="登录 Windows 后自动打开侧栏。"/>
           </StackPanel>
+          <DockPanel Grid.Row="1" Margin="0,11,0,4" LastChildFill="False">
+            <Border DockPanel.Dock="Top" Height="1" Margin="0,0,0,9" Background="{DynamicResource ThemeRule}"/>
+            <TextBlock Text="连接检查" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center"/>
+            <TextBlock Name="CheckTime" Margin="9,1,0,0" Style="{StaticResource Caption}"/>
+            <Button Name="RunCheck" DockPanel.Dock="Right" Style="{StaticResource Quiet}" Content="重新检查" Padding="8,2"/>
+          </DockPanel>
+          <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,0,5,0">
+            <StackPanel>
+              <StackPanel Name="GptCheck" Margin="0,2,0,8"/>
+              <StackPanel Name="ClaudeCheck"/>
+            </StackPanel>
+          </ScrollViewer>
         </Grid>
         <Grid Name="UsePage" Visibility="Collapsed">
           <Grid.RowDefinitions><RowDefinition/><RowDefinition Height="35"/><RowDefinition Height="36"/></Grid.RowDefinitions>

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Drawing;
@@ -195,7 +196,14 @@ namespace AISwitchDesk
 				}
 			};
 			Control<RadioButton>("AppearanceTab").Checked += delegate { Page("AppearancePage"); };
-			Control<RadioButton>("GeneralTab").Checked += delegate { Page("GeneralPage"); ShowAutoStart(); };
+			Control<RadioButton>("GeneralTab").Checked += delegate
+			{
+				Page("GeneralPage");
+				ShowAutoStart();
+				// A fresh look each time the page opens, unless one just ran.
+				if (DateTime.UtcNow - checkedAt > TimeSpan.FromSeconds(20)) RunConnectionCheck();
+			};
+			Click("RunCheck", delegate { RunConnectionCheck(); });
 			CheckBox startup = Control<CheckBox>("StartWithWindows");
 			startup.Click += delegate
 			{
@@ -517,6 +525,65 @@ namespace AISwitchDesk
 		private static void OpenFolder(string path)
 		{
 			Process.Start("explorer.exe", "\"" + path + "\"");
+		}
+
+		private DateTime checkedAt = DateTime.MinValue;
+
+		private bool checking;
+
+		private async void RunConnectionCheck()
+		{
+			if (checking || closed) return;
+			checking = true;
+			Button button = Control<Button>("RunCheck");
+			button.IsEnabled = false;
+			Control<TextBlock>("CheckTime").Text = "正在检查…";
+			IntPtr gptWindow = desk.KnownWindow("ChatGPT"), claudeWindow = desk.KnownWindow("Claude");
+			List<CheckLine>[] results;
+			try
+			{
+				results = await Task.Run(() => new[] { ConnectionCheck.Run("ChatGPT", gptWindow), ConnectionCheck.Run("Claude", claudeWindow) });
+			}
+			catch (Exception error)
+			{
+				results = new[] { new List<CheckLine> { new CheckLine("检查", CheckState.Bad, error.GetBaseException().Message) }, new List<CheckLine>() };
+				DropTrace.Write("check", error.ToString());
+			}
+			finally
+			{
+				checking = false;
+			}
+			if (closed) return;
+			checkedAt = DateTime.UtcNow;
+			button.IsEnabled = true;
+			Control<TextBlock>("CheckTime").Text = DateTime.Now.ToString("HH:mm:ss") + " 检查";
+			ShowCheck(Control<StackPanel>("GptCheck"), "ChatGPT", results[0]);
+			ShowCheck(Control<StackPanel>("ClaudeCheck"), "Claude", results[1]);
+		}
+
+		private static void ShowCheck(StackPanel card, string title, List<CheckLine> lines)
+		{
+			card.Children.Clear();
+			card.Children.Add(Text(title, 13.0, Ink, true));
+			foreach (CheckLine line in lines)
+			{
+				var row = new DockPanel { Margin = new Thickness(0.0, 4.0, 0.0, 0.0) };
+				var dot = new System.Windows.Shapes.Ellipse { Width = 7, Height = 7, Margin = new Thickness(1.0, 6.0, 8.0, 0.0), VerticalAlignment = VerticalAlignment.Top };
+				dot.SetResourceReference(System.Windows.Shapes.Shape.FillProperty,
+					line.State == CheckState.Good ? "ThemeAccentLine" : line.State == CheckState.Skipped ? "ThemeRule" : "ThemeWarning");
+				DockPanel.SetDock(dot, Dock.Left);
+				row.Children.Add(dot);
+				TextBlock label = Text(line.Label, 12.5, Ink, false);
+				label.Width = 58;
+				label.VerticalAlignment = VerticalAlignment.Top;
+				DockPanel.SetDock(label, Dock.Left);
+				row.Children.Add(label);
+				TextBlock detail = Text(line.Detail, 12.0, line.State == CheckState.Bad ? Ink : Muted, false);
+				detail.VerticalAlignment = VerticalAlignment.Top;
+				detail.Margin = new Thickness(0.0, 1.0, 0.0, 0.0);
+				row.Children.Add(detail);
+				card.Children.Add(row);
+			}
 		}
 
 		// The switch shows whether this copy starts at sign-in. Another copy

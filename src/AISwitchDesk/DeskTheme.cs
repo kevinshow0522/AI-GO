@@ -211,6 +211,7 @@ namespace AISwitchDesk
             resources["ThemeRule"] = Brush(Rule);
             resources["ThemeHover"] = Brush(Hover);
             resources["ThemeSelected"] = Brush(Selected);
+            resources["ThemeWarning"] = Brush(Warning);
         }
     }
 }
