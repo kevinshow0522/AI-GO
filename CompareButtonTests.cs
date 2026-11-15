@@ -446,6 +446,10 @@ internal static class CompareButtonTests
         Check(((System.Windows.UIElement)window.FindName("UsePage")).IsVisible,"usage tab");
         ((System.Windows.Controls.RadioButton)window.FindName("LogTab")).IsChecked=true;
         Check(((System.Windows.UIElement)window.FindName("LogPage")).IsVisible,"handoff tab");
+        var tabs=new[]{"UseTab","LogTab","QueueTab","GeneralTab","AppearanceTab"}.Select(n=>(System.Windows.Controls.RadioButton)window.FindName(n)).ToArray();
+        var tabRow=(System.Windows.Controls.Grid)tabs[0].Parent;
+        Check(tabs.All(t=>System.Windows.Controls.Grid.GetColumn(t)<tabRow.ColumnDefinitions.Count) &&
+            tabs.Select(t=>System.Windows.Controls.Grid.GetColumn(t)).Distinct().Count()==tabs.Length,"settings tabs share a column");
         ((System.Windows.Controls.RadioButton)window.FindName("GeneralTab")).IsChecked=true;
         Check(((System.Windows.UIElement)window.FindName("GeneralPage")).IsVisible,"general tab");
         ((System.Windows.Controls.RadioButton)window.FindName("AppearanceTab")).IsChecked=true;
