@@ -25,6 +25,8 @@ namespace AISwitchDesk
 				RelayMcp.Run(args[1]);
 				return;
 			}
+			// --tray: started at sign-in with "only in the tray" turned on.
+			bool inTray = args.Length == 1 && args[0] == "--tray";
 			BackgroundRelay.EnsureRunning();
 			bool createdNew;
 			using (Mutex mutex = new Mutex(true, "Local\\AISwitchDesk.0649A98C", out createdNew))
@@ -32,8 +34,10 @@ namespace AISwitchDesk
 				if (!createdNew)
 				{
 					IntPtr intPtr = Native.FindWindow(null, "AI 双窗");
-					if (intPtr != IntPtr.Zero)
+					if (intPtr != IntPtr.Zero && !inTray)
 					{
+						// The rail may be hidden in the tray; ask it to come back.
+						Native.PostMessage(intPtr, DeskForm.ShowRailMessage, IntPtr.Zero, IntPtr.Zero);
 						if (Native.IsIconic(intPtr))
 						{
 							Native.ShowWindowAsync(intPtr, 9);
@@ -46,7 +50,7 @@ namespace AISwitchDesk
 				{
 					Application.EnableVisualStyles();
 					Application.SetCompatibleTextRenderingDefault(false);
-					using (DeskForm mainForm = new DeskForm())
+					using (DeskForm mainForm = new DeskForm { StartInTray = inTray })
 					{
 						Application.Run(mainForm);
 					}

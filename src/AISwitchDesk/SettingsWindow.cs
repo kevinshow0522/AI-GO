@@ -204,12 +204,31 @@ namespace AISwitchDesk
 				if (DateTime.UtcNow - checkedAt > TimeSpan.FromSeconds(20)) RunConnectionCheck();
 			};
 			Click("RunCheck", delegate { RunConnectionCheck(); });
+			CheckBox trayStart = Control<CheckBox>("StartInTray");
+			trayStart.Click += delegate
+			{
+				try
+				{
+					AutoStart.Set(true, trayStart.IsChecked == true);
+				}
+				catch (Exception error)
+				{
+					if (!(error is IOException) && !(error is UnauthorizedAccessException) && !(error is System.Security.SecurityException)) throw;
+					DropTrace.Write("settings", "autostart tray " + error.GetType().Name);
+				}
+				ShowAutoStart();
+			};
+			Click("HideToTray", delegate
+			{
+				window.Hide();
+				desk.HideToTray();
+			});
 			CheckBox startup = Control<CheckBox>("StartWithWindows");
 			startup.Click += delegate
 			{
 				try
 				{
-					AutoStart.Set(startup.IsChecked == true);
+					AutoStart.Set(startup.IsChecked == true, AutoStart.InTray);
 				}
 				catch (Exception error)
 				{
@@ -596,6 +615,9 @@ namespace AISwitchDesk
 			string registered = AutoStart.Registered;
 			bool here = AutoStart.Enabled;
 			Control<CheckBox>("StartWithWindows").IsChecked = here;
+			CheckBox trayStart = Control<CheckBox>("StartInTray");
+			trayStart.IsChecked = AutoStart.InTray;
+			trayStart.IsEnabled = here;
 			Control<TextBlock>("StartWithWindowsNote").Text = here || registered == null
 				? "登录 Windows 后自动打开侧栏。"
 				: "现在开机启动的是另一份侧栏：" + registered + "。打开开关会改为启动这一份。";

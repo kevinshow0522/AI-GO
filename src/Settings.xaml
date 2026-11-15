@@ -249,6 +249,7 @@
             <CheckBox Name="StartWithWindows" Style="{StaticResource Switch}" Content="开机时启动侧栏" FontSize="14" FontWeight="SemiBold"/>
             <TextBlock Name="StartWithWindowsNote" Margin="0,4,0,0" Style="{StaticResource Caption}" TextWrapping="Wrap"
                        Text="登录 Windows 后自动打开侧栏。"/>
+            <CheckBox Name="StartInTray" Margin="0,9,0,0" Style="{StaticResource Switch}" Content="开机时只放到托盘"/>
           </StackPanel>
           <DockPanel Grid.Row="1" Margin="0,11,0,4" LastChildFill="False">
             <Border DockPanel.Dock="Top" Height="1" Margin="0,0,0,9" Background="{DynamicResource ThemeRule}"/>
@@ -358,7 +359,10 @@
             <TextBlock Name="CompareLabel" Text="并排对照" Margin="5,0,0,0" VerticalAlignment="Center"/>
           </StackPanel>
         </Button>
-        <Button Name="ExitRail" Style="{StaticResource Quiet}" Content="退出侧栏" Padding="5,3" HorizontalAlignment="Right" VerticalAlignment="Bottom"/>
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Bottom">
+          <Button Name="HideToTray" Style="{StaticResource Quiet}" Content="隐藏" Padding="5,3" ToolTip="把侧栏收到托盘里，点托盘图标可以再打开"/>
+          <Button Name="ExitRail" Style="{StaticResource Quiet}" Content="退出侧栏" Padding="5,3"/>
+        </StackPanel>
       </Grid>
     </Grid>
   </Border>

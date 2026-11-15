@@ -180,6 +180,16 @@ internal static class WindowShots
                     Pump(150);
                 });
 
+                Try("tray-" + tag, delegate
+                {
+                    var menu = (ContextMenuStrip)railType.GetField("trayMenu", Members).GetValue(rail);
+                    menu.Show(rail.Right + 8, rail.Top + 20);
+                    Pump(300);
+                    Save(menu, "tray-" + tag);
+                    menu.Close();
+                    Pump(150);
+                });
+
                 Try("menu-" + tag, delegate
                 {
                     call("ShowExitMenu", new object[] { 0, new Point(rail.Right + 8, rail.Top + 40), true });

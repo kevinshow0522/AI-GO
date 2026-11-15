@@ -393,6 +393,7 @@ namespace AISwitchDesk
 			{
 				Tick();
 			};
+			InitializeTray();
 		}
 
 		private int P(double n)
@@ -494,6 +495,14 @@ namespace AISwitchDesk
 				LayoutRail();
 				KeepOnScreen();
 				SetSelected(selected);
+				if (StartInTray)
+				{
+					// Started at sign-in to sit in the tray: set up, but stay hidden.
+					StartInTray = false;
+					base.SetVisibleCore(false);
+					poll.Start();
+					return;
+				}
 			}
 			base.SetVisibleCore(value);
 		}
@@ -800,6 +809,26 @@ namespace AISwitchDesk
 			if (m.Msg == 33 && ready)
 			{
 				m.Result = (IntPtr)3;
+				return;
+			}
+			if (m.Msg == ShowRailMessage)
+			{
+				ShowRail();
+				return;
+			}
+			// Right-click on the rail itself (buttons without their own menu pass it up).
+			if (m.Msg == 123 && ready)
+			{
+				int at = (int)m.LParam.ToInt64();
+				ShowRailMenu(at == -1 ? PointToScreen(new Point(base.Width / 2, SurfaceTop + P(20.0))) : new Point(at));
+				m.Result = IntPtr.Zero;
+				return;
+			}
+			// The system's minimize command puts the rail in the tray.
+			if (m.Msg == 274 && (m.WParam.ToInt64() & 0xFFF0) == 0xF020 && ready)
+			{
+				HideToTray();
+				m.Result = IntPtr.Zero;
 				return;
 			}
 			if (m.Msg == 786 && ready)
@@ -1117,6 +1146,12 @@ namespace AISwitchDesk
 			DropTrace.Write(index < 2 ? clients[index].Name : "helper", "notice " + text);
 			if (!closing)
 			{
+				// With the rail in the tray, the note comes from the tray icon instead.
+				if (!Visible)
+				{
+					TrayNotice(text);
+					return;
+				}
 				RailButton railButton = buttons[collapsed ? (int)RailAction.Fold : index];
 				tips.Show(text, railButton, railButton.Width + 5, 0, 4200);
 			}
@@ -1329,6 +1364,7 @@ namespace AISwitchDesk
 			if (dropTargets != null) dropTargets.ApplyTheme();
 			if (exitMenu != null) exitMenu.ApplyTheme();
 			if (askBox != null) askBox.ApplyTheme();
+			ApplyTrayTheme();
 			usagePopup.ApplyTheme();
 			if (usagePopup.Visible) usagePopup.Display(QuotaTitle, usage[selected], dpi);
 			return true;
@@ -1494,6 +1530,7 @@ namespace AISwitchDesk
 			}
 			usagePopup.Close();
 			SavePosition();
+			DisposeTray();
 			base.OnFormClosing(e);
 		}
 
@@ -1501,6 +1538,7 @@ namespace AISwitchDesk
 		{
 			if (disposing)
 			{
+				DisposeTray();
 				usage[0].Changed -= UsageChanged;
 				usage[1].Changed -= UsageChanged;
 				foldMotion.Dispose();
