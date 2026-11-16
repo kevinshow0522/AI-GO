@@ -96,6 +96,12 @@ internal static class CompareButtonTests
         Type store=assembly.GetType("AISwitchDesk.RelayStore");
         store.GetField("Root",Static).SetValue(null,temp);
         store.GetField("Jobs",Static).SetValue(null,Path.Combine(temp,"handoffs"));
+        // Earlier readings of both plans. Claude's 18% is under the default 20% alert line.
+        long readAt=DateTime.UtcNow.Ticks, resets=DateTimeOffset.UtcNow.AddHours(3).ToUnixTimeSeconds();
+        File.WriteAllText(Path.Combine(temp,"quota-ChatGPT.json"),"{\"Source\":\"OpenAI · Codex\",\"ReadAt\":"+readAt+
+            ",\"Rows\":[{\"Window\":\"5 小时\",\"Remaining\":62,\"ResetEpoch\":"+resets+"},{\"Window\":\"7 天\",\"Remaining\":34,\"ResetEpoch\":"+resets+"}]}",new UTF8Encoding(false));
+        File.WriteAllText(Path.Combine(temp,"quota-Claude.json"),"{\"Source\":\"Claude · 官方用量页\",\"ReadAt\":"+readAt+
+            ",\"Rows\":[{\"Window\":\"当前会话\",\"Remaining\":18,\"Reset\":\"3 小时后重置\"}]}",new UTF8Encoding(false));
         Type type=assembly.GetType("AISwitchDesk.DeskForm");
         using (Form a=new Form{FormBorderStyle=FormBorderStyle.None,StartPosition=FormStartPosition.Manual,Bounds=new Rectangle(40,70,330,240)})
         using (Form b=new Form{FormBorderStyle=FormBorderStyle.None,StartPosition=FormStartPosition.Manual,Bounds=new Rectangle(380,100,360,260)})
@@ -113,8 +119,15 @@ internal static class CompareButtonTests
                 Check((bool)client.GetType().GetMethod("IsRemembered",Members).Invoke(client,new object[]{form.Handle}),"test window not recognized");
             }
             var buttons=rail.Controls.OfType<Button>().OrderBy(button=>button.TabIndex).ToArray();
-            Check(buttons.Select(button=>button.AccessibleName).SequenceEqual(new[]{"ChatGPT","Claude","并排对照","同时提问","套餐用量","设置","收起侧栏"}),"button order or accessibility labels");
+            Check(buttons.Select(button=>button.AccessibleName).SequenceEqual(new[]{"ChatGPT","Claude","并排对照","同时提问","设置","收起侧栏"}),"button order or accessibility labels");
             Check(buttons.Take(3).All(button=>button.AllowDrop) && buttons.Skip(3).All(button=>!button.AllowDrop),"app and compare file targets");
+            // Each app's allowance rides on its own icon; no other button carries one.
+            Func<Button,string,object> state=(button,name)=>button.GetType().GetField(name,Members).GetValue(button);
+            Check((double?)state(buttons[0],"Remaining")==34 && !(bool)state(buttons[0],"LowAllowance"),"ChatGPT allowance on its icon");
+            Check((double?)state(buttons[1],"Remaining")==18 && (bool)state(buttons[1],"LowAllowance"),"Claude allowance on its icon");
+            Check(buttons.Skip(2).All(button=>state(button,"Remaining")==null),"allowance on a tool button");
+            Check(buttons[0].AccessibleDescription.Contains("7 天剩余 34%") && buttons[1].AccessibleDescription.Contains("当前会话剩余 18%") &&
+                buttons[1].AccessibleDescription.Contains("低于 20% 提醒线"),"allowance figures in the app icon descriptions");
             var compare=buttons[2];
             foreach (int zoom in new[]{80,84,100,110,160})
             {
@@ -366,7 +379,6 @@ internal static class CompareButtonTests
             new object[]{rail,new Action<int>(i=>{})},null);
         type.GetField("exitMenu",Members).SetValue(rail,exit);
         var exitWindow=(System.Windows.Window)exit.GetType().GetField("window",Members).GetValue(exit);
-        var usage=(ToolStripDropDown)type.GetField("usagePopup",Members).GetValue(rail);
         var themeType=app.GetType("AISwitchDesk.DeskTheme");
         var surface=(System.Windows.Controls.Border)window.FindName("Surface");
         var appearance=(System.Windows.FrameworkElement)window.FindName("AppearancePage");
@@ -384,7 +396,7 @@ internal static class CompareButtonTests
             var exitBrush=((System.Windows.Media.SolidColorBrush)((System.Windows.Controls.Border)exitWindow.Content).Background).Color;
             Check(ReferenceEquals(radio.Tag,themeType.GetField("Preset",Members).GetValue(theme)) && File.ReadAllText(preference)==id,"selection did not persist");
             Check(bg.R==paper.R && bg.G==paper.G && bg.B==paper.B && exitBrush==bg,"WPF surfaces did not update");
-            Check(rail.BackColor==bottom && targets.BackColor==paper && usage.BackColor==paper,"WinForms surfaces did not update");
+            Check(rail.BackColor==bottom && targets.BackColor==paper,"WinForms surfaces did not update");
             Check(!rail.Region.IsVisible(0,0) && rail.Region.IsVisible(rail.Width/2,2),"rail corner or top cutout");
             Check(!targets.Region.IsVisible(0,0) && targets.Region.IsVisible(targets.Width/2,1),"upload corner or top cutout");
             var end=accentPanel.TranslatePoint(new System.Windows.Point(accentPanel.ActualWidth,accentPanel.ActualHeight),appearance);
@@ -413,8 +425,8 @@ internal static class CompareButtonTests
                     checkedAccents+", reset enabled "+reset.IsEnabled+", label "+value.Text);
                 Check((fill.ToArgb()&0xFFFFFF)==accentRgb[a] && ResourceRgb(window,"ThemeAccent")==accentRgb[a] &&
                     ResourceRgb(exitWindow,"ThemeAccent")==accentRgb[a],"accent does not match GPT");
-                Check(ResourceRgb(window,"ThemeSurface")==(paper.ToArgb()&0xFFFFFF) && targets.BackColor==paper &&
-                    usage.BackColor==paper,"overriding accent also changed the base palette");
+                Check(ResourceRgb(window,"ThemeSurface")==(paper.ToArgb()&0xFFFFFF) && targets.BackColor==paper,
+                    "overriding accent also changed the base palette");
                 Check(Contrast(foreground,fill)>=4.5 && Contrast(stroke,paper)>=3.0,"indicator contrast");
                 var slashColor=((System.Windows.Media.SolidColorBrush)slash.Stroke).Color;
                 Check(slashColor.R==stroke.R && slashColor.G==stroke.G && slashColor.B==stroke.B,"settings slash lost the current accent");

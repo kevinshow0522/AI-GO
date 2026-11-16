@@ -78,7 +78,6 @@ namespace AISwitchDesk
             CloseExitMenu();
             HideSettings();
             HideAsk();
-            usagePopup.Close();
             if (dropTargets != null) dropTargets.HideTargets();
             Hide();
             // Say once where the rail went.

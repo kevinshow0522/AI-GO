@@ -16,7 +16,6 @@ namespace AISwitchDesk
             if (closing || paths == null || paths.Length == 0) return;
             bool both = target == (int)RailAction.Compare;
             CloseExitMenu();
-            if (usagePopup.Visible) usagePopup.Close();
             if (!both) SetSelected(target);
             var destinations = new List<UploadDestination>();
             foreach (int index in both ? new[] { 0, 1 } : new[] { target })

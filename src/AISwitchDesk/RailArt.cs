@@ -20,6 +20,8 @@ namespace AISwitchDesk
         // the place a dragged file will go.
         internal float Select, Highlight, Drop, IconScale = 1f, Reveal = 1f, Expansion = 1f;
         internal bool DragOver, FocusCue;
+        // The two app icons carry their own plan allowance, as a small ring.
+        // Remaining is null when there is no current reading.
         internal double? Remaining;
         internal bool LowAllowance;
         internal TransferMark Feedback;
@@ -53,10 +55,10 @@ namespace AISwitchDesk
     // also marks where a file is going and where one can be dropped.
     internal static class RailArt
     {
-        internal const int NormWidth = 58, NormHeight = 337, FoldHeight = 56, CornerRadius = 24;
+        internal const int NormWidth = 58, NormHeight = 292, FoldHeight = 56, CornerRadius = 24;
 
         // ChatGPT and Claude, then the rule, then the tools.
-        internal static readonly int[] ButtonTop = { 21, 67, 121, 166, 211, 256 };
+        internal static readonly int[] ButtonTop = { 21, 67, 121, 166, 211 };
 
         // Seconds for one trip of the transfer trail, including its pause.
         internal const double TravelSeconds = 1.5;
@@ -65,6 +67,11 @@ namespace AISwitchDesk
         internal const float MarkerSeconds = .3f;
 
         private const float TileRadius = 11f;
+
+        // The allowance ring, measured from the middle of an app tile. It sits on
+        // the corner opposite the transfer badge, clear of the logo. AllowanceCut
+        // is the disc that clears the tile from behind it.
+        private const float AllowanceX = 14f, AllowanceY = -13.5f, AllowanceRadius = 4.8f, AllowanceStroke = 2f, AllowanceCut = 7.2f;
 
         // How strongly the neutral tile shows under the pointer.
         internal static float TileLevel(bool hover, bool pressed)
@@ -242,9 +249,6 @@ namespace AISwitchDesk
                 case RailAction.Ask:
                     AskGlyph(g, color, Alpha(reveal, line));
                     break;
-                case RailAction.Usage:
-                    Allowance(g, look, color, theme);
-                    break;
                 case RailAction.Settings:
                     using (SolidBrush knob = new SolidBrush(color))
                     {
@@ -268,6 +272,7 @@ namespace AISwitchDesk
             }
             g.Restore(gstate);
 
+            if (look.Action == RailAction.ChatGPT || look.Action == RailAction.Claude) Allowance(g, look, theme);
             if (look.DragOver || drop > .5f) Plus(g, theme, drop * reveal);
             else if (look.Feedback != TransferMark.None) Badge(g, look, theme, line);
 
@@ -416,24 +421,34 @@ namespace AISwitchDesk
             }
         }
 
-        // Remaining allowance as a ring that empties clockwise.
-        private static void Allowance(Graphics g, ButtonLook look, Color ink, DeskTheme theme)
+        // The app's remaining plan allowance, on its icon's upper right corner: a
+        // small ring that shrinks as the allowance is used. Without a current
+        // reading only the faint track is drawn.
+        private static void Allowance(Graphics g, ButtonLook look, DeskTheme theme)
         {
-            if (look.LowAllowance)
+            float reveal = look.Reveal;
+            if (reveal <= 0f) return;
+            // Where a tile shows, its corner is cleared, so the ring always sits
+            // on the rail's own colour and reads the same selected or not.
+            float cut = Math.Max(look.Select, look.Drop) * reveal;
+            if (cut > 0.005f)
             {
-                // On a selected tile the warning needs a shade that reads on the accent.
-                Color onAccent = theme.OnAccent.GetBrightness() > 0.5f ? Color.FromArgb(255, 230, 173) : Color.FromArgb(99, 62, 21);
-                ink = Color.FromArgb(Math.Max((int)ink.A, (int)(230 * look.Reveal)), DeskTheme.Mix(theme.Warning, onAccent, look.Select));
+                using (var notch = new SolidBrush(Alpha(cut, theme.RailBottom)))
+                    g.FillEllipse(notch, AllowanceX - AllowanceCut, AllowanceY - AllowanceCut, 2 * AllowanceCut, 2 * AllowanceCut);
             }
-            RectangleF rect = new RectangleF(-9.6f, -9.6f, 19.2f, 19.2f);
-            using (var track = new Pen(Color.FromArgb(ink.A * 30 / 100, ink), 2.1f))
+            Color ink = look.LowAllowance ? theme.Warning : theme.Ink;
+            var rect = new RectangleF(AllowanceX - AllowanceRadius, AllowanceY - AllowanceRadius, 2 * AllowanceRadius, 2 * AllowanceRadius);
+            using (var track = new Pen(Alpha((look.LowAllowance ? .42 : .24) * reveal, ink), AllowanceStroke))
                 g.DrawEllipse(track, rect);
             if (!look.Remaining.HasValue || look.Remaining.Value <= 0.0) return;
-            using (var arc = new Pen(ink, 2.1f))
+            using (var arc = new Pen(Alpha(reveal, ink), AllowanceStroke))
             {
-                arc.StartCap = arc.EndCap = LineCap.Round;
                 if (look.Remaining.Value >= 100.0) g.DrawEllipse(arc, rect);
-                else g.DrawArc(arc, rect, -90f, (float)(3.6 * look.Remaining.Value));
+                else
+                {
+                    arc.StartCap = arc.EndCap = LineCap.Round;
+                    g.DrawArc(arc, rect, -90f, (float)(3.6 * look.Remaining.Value));
+                }
             }
         }
     }

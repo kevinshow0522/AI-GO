@@ -6,7 +6,6 @@ namespace AISwitchDesk
 		Claude,
 		Compare,
 		Ask,
-		Usage,
 		Settings,
 		Fold
 	}

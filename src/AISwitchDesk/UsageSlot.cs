@@ -215,7 +215,7 @@ namespace AISwitchDesk
 			Allowance allowance = RingRow();
 			if (allowance == null)
 			{
-				return title + " · " + (Reading ? "正在读取额度" : ((Report.Rows != null && Report.Rows.Count > 0) ? "额度待刷新" : "额度暂不可用")) + "，点击查看";
+				return title + " · " + (Reading ? "正在读取额度" : ((Report.Rows != null && Report.Rows.Count > 0) ? "额度待刷新" : "额度暂不可用"));
 			}
 			return title + " · " + allowance.Window + "剩余 " + allowance.Remaining.ToString("0.#") + "%" + (Stale ? ("（" + AgeText() + "读取）") : "") + "\n" + ResetLine(allowance);
 		}

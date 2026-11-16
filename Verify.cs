@@ -85,8 +85,12 @@ class Verify
         }
         CheckComparisonMark(newApp);
         CheckDeskMark(newApp);
-        foreach (var oldType in oldApp.GetTypes().Where(t => !t.IsNested && t.Namespace == "AISwitchDesk"))
+        // Types removed on purpose. The usage popup went when each app's allowance moved onto its own icon.
+        string[] retired = { "AISwitchDesk.UsagePopup" };
+        foreach (var oldType in oldApp.GetTypes().Where(t => !t.IsNested && t.Namespace == "AISwitchDesk" && !retired.Contains(t.FullName)))
             Check(newApp.GetType(oldType.FullName) != null, "type: " + oldType.FullName);
+        Check(newApp.GetType("AISwitchDesk.UsagePopup") == null && !Enum.GetNames(newApp.GetType("AISwitchDesk.RailAction")).Contains("Usage"),
+            "no separate usage button or popup");
         var method = newApp.GetType("AISwitchDesk.ChatUi").GetMethod("NewDraftState", BindingFlags.Static | BindingFlags.NonPublic);
         Check(method != null,"new-chat state verifier is available");
         Func<string,string,string,bool,bool,bool,bool,bool> state = (app,oldPage,page,editorChanged,oldHistory,history,draft) =>

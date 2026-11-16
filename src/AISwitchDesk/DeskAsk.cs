@@ -22,7 +22,6 @@ namespace AISwitchDesk
             if (closing) return;
             CloseExitMenu();
             HideSettings();
-            usagePopup.Close();
             if (askBox == null)
             {
                 askBox = new AskBox(this);

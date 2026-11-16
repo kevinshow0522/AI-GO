@@ -44,9 +44,10 @@ internal sealed class Scene
     internal string Caption = "";
     internal float Expansion = 1f, Selection, SelectionTail = -1f;
     internal int Selected = 0, Hover = -1, Pressed = -1, Drag = -1, Focus = -1;
-    internal bool Comparing, UsageOpen, AskOpen;
-    internal double? Remaining = 62;
-    internal bool Low;
+    internal bool Comparing, AskOpen;
+    // What is left of each app's plan: ChatGPT, then Claude. Null is "no reading".
+    internal double?[] Remaining = { 62, 38 };
+    internal bool[] Low = new bool[2];
     internal int TrailFrom = -1, TrailTo = -1;
     internal float Travel;
     internal TransferMark[] Feedback = new TransferMark[2];
@@ -106,7 +107,7 @@ internal static class RailPreview
                 }
                 look.Width = bounds.Width;
                 look.Height = bounds.Height;
-                bool selected = i < 2 ? s.Selected == i : (i == (int)RailAction.Compare ? s.Comparing : (i == (int)RailAction.Usage && s.UsageOpen) || (i == (int)RailAction.Ask && s.AskOpen));
+                bool selected = i < 2 ? s.Selected == i : (i == (int)RailAction.Compare ? s.Comparing : i == (int)RailAction.Ask && s.AskOpen);
                 bool drag = s.Drag == i, pressed = s.Pressed == i, hover = s.Hover == i;
                 look.DragOver = drag;
                 look.Drop = drag ? 1f : 0f;
@@ -114,10 +115,10 @@ internal static class RailPreview
                 look.Highlight = RailArt.TileLevel(hover, pressed);
                 look.IconScale = RailArt.IconScale(look.Action, hover, pressed, drag);
                 look.FocusCue = s.Focus == i;
-                look.Remaining = s.Remaining;
-                look.LowAllowance = s.Low;
                 if (i < 2)
                 {
+                    look.Remaining = s.Remaining[i];
+                    look.LowAllowance = s.Low[i];
                     look.Feedback = s.Feedback[i];
                     look.FeedbackPhase = s.FeedbackPhase[i];
                     look.FeedbackAge = s.FeedbackAge[i];
@@ -189,10 +190,12 @@ internal static class RailPreview
             new Scene { Caption = "rest" },
             new Scene { Caption = "hover", Selected = 1, Selection = 1, Hover = 0 },
             new Scene { Caption = "hover compare", Hover = 2 },
-            new Scene { Caption = "pressed", Pressed = (int)RailAction.Usage },
+            new Scene { Caption = "pressed", Pressed = (int)RailAction.Settings },
             new Scene { Caption = "file over", Drag = 1 },
-            new Scene { Caption = "comparing", Comparing = true, Low = true, Remaining = 12 },
-            new Scene { Caption = "usage open", UsageOpen = true, Hover = 0 },
+            new Scene { Caption = "comparing", Comparing = true },
+            new Scene { Caption = "low", Remaining = new double?[] { 62, 12 }, Low = new[] { false, true } },
+            new Scene { Caption = "low, selected", Selected = 1, Selection = 1, Remaining = new double?[] { 100, 8 }, Low = new[] { false, true } },
+            new Scene { Caption = "no reading", Remaining = new double?[] { 0, null } },
             new Scene { Caption = "ask open", AskOpen = true },
             new Scene { Caption = "sending", TrailFrom = 0, TrailTo = 1, Travel = .55f,
                 Feedback = new[] { TransferMark.None, TransferMark.Working }, FeedbackPhase = new[] { 0f, .55f } },
@@ -201,7 +204,7 @@ internal static class RailPreview
             new Scene { Caption = "delivered", Selected = 1, Selection = 1,
                 Feedback = new[] { TransferMark.None, TransferMark.Success }, FeedbackPhase = new[] { 0f, 1f }, FeedbackAge = new[] { 0f, .5f } },
             new Scene { Caption = "queued / retry", Feedback = new[] { TransferMark.Waiting, TransferMark.Attention } },
-            new Scene { Caption = "keyboard", Focus = (int)RailAction.Settings, Remaining = null },
+            new Scene { Caption = "keyboard", Focus = (int)RailAction.Settings },
             new Scene { Caption = "folded", Expansion = 0f }
         };
     }
@@ -278,7 +281,7 @@ internal static class RailPreview
         string source = args.Length > 0 ? args[0] : "src", output = args.Length > 1 ? args[1] : "preview";
         if (args.Length > 2 && !args[2].StartsWith("--")) scale = float.Parse(args[2], System.Globalization.CultureInfo.InvariantCulture);
         Directory.CreateDirectory(output);
-        marks = new[] { Load(source, "chatgpt.png"), Load(source, "claude-mark.png"), Load(source, "chatgpt.png"), null, null, null, Load(source, "desk-mark.png") };
+        marks = new[] { Load(source, "chatgpt.png"), Load(source, "claude-mark.png"), Load(source, "chatgpt.png"), null, null, Load(source, "desk-mark.png") };
 
         Use("codex-light", null);
         var light = Row(Color.FromArgb(226, 229, 234), Color.FromArgb(70, 76, 86), States());

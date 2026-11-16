@@ -47,7 +47,8 @@ namespace AISwitchDesk
                     hint = clients[i].Name + " 已加入 " + work.Entries.Count(e => e.State == UploadState.Added) + "/" + work.Entries.Length;
                 if (waiting[i] != 0) hint += " · " + waiting[i] + " 项排队中";
                 if (issues[i] != 0) hint += " · " + issues[i] + " 项待重试，右键并排图标查看";
-                tips.SetToolTip(buttons[i], hint);
+                transferHint[i] = hint;
+                DescribeApp(i);
             }
             TransferFrame();
         }
@@ -111,9 +112,12 @@ namespace AISwitchDesk
                 button.FeedbackFade = mark == TransferMark.Success && animate ? (float)Math.Min(1, (successUntil[i] - now) / .3) : 1f;
                 if (changed || ((mark == TransferMark.Working || mark == TransferMark.Success) && animate)) button.Invalidate();
                 if (changed)
-                    button.AccessibleDescription = mark == TransferMark.Attention ? "文件待重试，可在文件队列中查看" :
+                {
+                    transferState[i] = mark == TransferMark.Attention ? "文件待重试，可在文件队列中查看" :
                         mark == TransferMark.Success ? "文件已送达" : mark == TransferMark.Working ? "正在传递文件" :
                         mark == TransferMark.Waiting ? "文件排队中" : "";
+                    DescribeApp(i);
+                }
                 needsFrames |= mark == TransferMark.Working || mark == TransferMark.Success;
             }
             // This narrow strip is outside the button hit areas.

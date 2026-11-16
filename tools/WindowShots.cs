@@ -1,6 +1,6 @@
 // Opens the built sidebar's own windows with sample data and saves a picture
-// of each: the rail, the four settings pages, the usage popup, the file drop
-// targets and the app menu, in a light and a dark theme. Nothing is read from
+// of each: the rail, the settings pages, the file drop targets and the app
+// menu, in a light and a dark theme. Nothing is read from
 // or written to the installed sidebar's data; a temporary folder stands in.
 //
 //   .\preview.ps1 -Windows
@@ -145,16 +145,6 @@ internal static class WindowShots
                     }
                     call("OpenSettings", null);
                     Pump(200);
-                });
-
-                Try("usage-" + tag, delegate
-                {
-                    call("OpenUsage", null);
-                    Pump(350);
-                    var popup = (ToolStripDropDown)railType.GetField("usagePopup", Members).GetValue(rail);
-                    Save((Control)popup.GetType().GetField("card", Members).GetValue(popup), "usage-" + tag);
-                    popup.Close();
-                    Pump(150);
                 });
 
                 Try("drop-" + tag, delegate

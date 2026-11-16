@@ -81,7 +81,13 @@ namespace AISwitchDesk
 
 		private int dropTargetIndex;
 
-		private readonly UsagePopup usagePopup;
+		// What each app icon says about itself: what a dropped file is doing
+		// there, and how much of the plan is left. See DescribeApp.
+		private readonly string[] transferHint = new string[2];
+
+		private readonly string[] transferState = new string[2];
+
+		private readonly string[] usageTip = new string[2];
 
 		private SettingsWindow settings;
 
@@ -197,18 +203,6 @@ namespace AISwitchDesk
 			}
 		}
 
-		private string QuotaTitle
-		{
-			get
-			{
-				if (selected != 0)
-				{
-					return "Claude";
-				}
-				return "ChatGPT · Codex";
-			}
-		}
-
 		internal int Threshold
 		{
 			get
@@ -279,7 +273,7 @@ namespace AISwitchDesk
 			};
 			base.KeyPreview = true;
 			SetStyle(ControlStyles.UserPaint | ControlStyles.Opaque | ControlStyles.AllPaintingInWmPaint, true);
-			string[] labels = { "ChatGPT", "Claude", "并排对照", "同时提问", "套餐用量", "设置", "收起侧栏" };
+			string[] labels = { "ChatGPT", "Claude", "并排对照", "同时提问", "设置", "收起侧栏" };
 			for (int i = 0; i < buttons.Length; i++)
 			{
 				RailButton railButton = new RailButton((RailAction)i, labels[i]);
@@ -309,7 +303,6 @@ namespace AISwitchDesk
 					BeginInvoke((Action)delegate { QueueFiles(index, paths, false); });
 				};
 				buttons[j].FilesHovering += delegate { ShowDropTargets(index); };
-				tips.SetToolTip(buttons[j], clients[j].Name + " · 拖到图标后台加入当前对话；拖到旁边的新建聊天区域另开聊天");
 			}
 			buttons[(int)RailAction.Compare].Click += delegate
 			{
@@ -328,10 +321,6 @@ namespace AISwitchDesk
 				OpenAsk();
 			};
 			tips.SetToolTip(buttons[(int)RailAction.Ask], "同时提问 · 一段话发到 ChatGPT 和 Claude 当前的对话");
-			buttons[(int)RailAction.Usage].Click += delegate
-			{
-				OpenUsage();
-			};
 			buttons[(int)RailAction.Settings].Click += delegate
 			{
 				OpenSettings();
@@ -343,14 +332,6 @@ namespace AISwitchDesk
 			buttons[(int)RailAction.Fold].BringToFront();
 			UpdateComparisonButton();
 			tips.SetToolTip(this, "拖动顶部横条移动侧栏");
-			usagePopup = new UsagePopup(delegate
-			{
-				RefreshQuota(selected);
-			});
-			usagePopup.Closed += delegate
-			{
-				buttons[(int)RailAction.Usage].Selected = false;
-			};
 			usage[0].Changed += UsageChanged;
 			usage[1].Changed += UsageChanged;
 			relay = new RelayPump(this);
@@ -369,6 +350,7 @@ namespace AISwitchDesk
 			catch (UnauthorizedAccessException)
 			{
 			}
+			UsageChanged();
 			LoadPosition();
 			selectionPosition = selectionTail = selected;
 			selectionMotion.Tick += delegate
@@ -476,7 +458,7 @@ namespace AISwitchDesk
 
 		protected override void SetVisibleCore(bool value)
 		{
-			if (value && !ready && usagePopup != null)
+			if (value && !ready && relay != null)
 			{
 				IntPtr handle = base.Handle;
 				dpi = Math.Max(96, (int)Native.GetDpiForWindow(handle));
@@ -639,7 +621,6 @@ namespace AISwitchDesk
 			CloseExitMenu();
 			HideSettings();
 			HideAsk();
-			usagePopup.Close();
 			collapsed = !collapsed;
 			UpdateFoldLabel();
 			foldFrom = expansion;
@@ -890,10 +871,6 @@ namespace AISwitchDesk
 
 		private void SetSelected(int index)
 		{
-			if (index != selected && usagePopup.Visible)
-			{
-				usagePopup.Close();
-			}
 			if (index != selected)
 			{
 				selected = index;
@@ -915,7 +892,6 @@ namespace AISwitchDesk
 			{
 				buttons[i].Selected = i == index;
 			}
-			UsageChanged();
 		}
 
 		private async void OpenApp(int index)
@@ -927,10 +903,6 @@ namespace AISwitchDesk
 			}
 			CloseExitMenu();
 			HideSettings();
-			if (usagePopup.Visible)
-			{
-				usagePopup.Close();
-			}
 			SetSelected(index);
 			ClientWindow client = clients[index];
 			if (client.Quitting)
@@ -1045,7 +1017,6 @@ namespace AISwitchDesk
 			UpdateComparisonButton();
 			CloseExitMenu();
 			HideSettings();
-			usagePopup.Close();
 			try
 			{
 				if (comparison.Active)
@@ -1163,7 +1134,6 @@ namespace AISwitchDesk
 			{
 				HideSettings();
 				HideAsk();
-				usagePopup.Close();
 				if (exitMenu == null)
 				{
 					exitMenu = new AppExitMenu(this, QuitApp);
@@ -1266,59 +1236,63 @@ namespace AISwitchDesk
 			}
 		}
 
+		// Each app's allowance is shown on its own icon: a ring for the amount,
+		// and the figures in the icon's tooltip. The full report is in Settings.
 		private void UsageChanged()
 		{
-			if (!closing)
+			if (closing)
 			{
-				UsageSlot usageSlot = usage[selected];
+				return;
+			}
+			for (int i = 0; i < 2; i++)
+			{
+				UsageSlot usageSlot = usage[i];
 				Allowance allowance = usageSlot.RingRow();
-				double? num = ((allowance == null) ? null : new double?(allowance.Remaining));
-				bool flag = UsageSlot.Low(num, threshold);
-				RailButton usageButton = buttons[(int)RailAction.Usage];
-				double? remaining = usageButton.Remaining;
-				double? num2 = num;
-				if (remaining.GetValueOrDefault() != num2.GetValueOrDefault() || remaining.HasValue != num2.HasValue || usageButton.LowAllowance != flag)
+				double? remaining = ((allowance == null) ? null : new double?(allowance.Remaining));
+				bool low = UsageSlot.Low(remaining, threshold);
+				RailButton appButton = buttons[i];
+				if (appButton.Remaining != remaining || appButton.LowAllowance != low)
 				{
-					usageButton.Remaining = num;
-					usageButton.LowAllowance = flag;
-					usageButton.Invalidate();
+					appButton.Remaining = remaining;
+					appButton.LowAllowance = low;
+					appButton.Invalidate();
 				}
-				string text = usageSlot.Tip((selected == 0) ? "ChatGPT · Codex" : "Claude");
-				if (flag)
+				string text = usageSlot.Tip((i == 0) ? "Codex 用量" : "用量");
+				if (low)
 				{
-					object obj = text;
-					text = string.Concat(obj, " · 低于 ", threshold, "% 提醒线");
+					// The figure is on the first line and its reset time on the second.
+					int lineEnd = text.IndexOf('\n');
+					text = text.Insert((lineEnd < 0) ? text.Length : lineEnd, "，低于 " + threshold + "% 提醒线");
 				}
-				if (usageButton.AccessibleDescription != text)
+				else if (allowance == null && i == 1 && !usageSlot.Reading)
 				{
-					usageButton.AccessibleDescription = text;
-					tips.SetToolTip(usageButton, text);
+					text += "\n在 Claude 打开「设置 → 用量」后自动读取";
 				}
-				if (usagePopup.Visible)
-				{
-					usagePopup.Display(QuotaTitle, usageSlot, dpi);
-				}
+				usageTip[i] = text;
+				DescribeApp(i);
 			}
 		}
 
-		private void OpenUsage()
+		// The tooltip and the screen-reader description of an app icon.
+		private void DescribeApp(int index)
 		{
-			CloseExitMenu();
-			HideSettings();
-			HideAsk();
-			if (usagePopup.Visible)
+			RailButton appButton = buttons[index];
+			if (appButton == null)
 			{
-				usagePopup.Close();
 				return;
 			}
-			RailButton usageButton = buttons[(int)RailAction.Usage];
-			usageButton.Selected = true;
-			usagePopup.Display(QuotaTitle, usage[selected], dpi);
-			Point screenLocation = PopupPosition(usagePopup.Size, usageButton.Top);
-			usagePopup.Show(screenLocation);
-			if (selected == 0 && usage[0].Report.ReadAt < DateTime.UtcNow.AddMinutes(-3.0).Ticks && usage[0].LastAttempt < DateTime.UtcNow.AddSeconds(-15.0))
+			string hint = transferHint[index] ?? clients[index].Name;
+			string usageText = usageTip[index] ?? "";
+			string tip = (usageText.Length == 0) ? hint : (hint + "\n" + usageText);
+			if (tips.GetToolTip(appButton) != tip)
 			{
-				RefreshQuota(0);
+				tips.SetToolTip(appButton, tip);
+			}
+			string state = transferState[index] ?? "";
+			string description = (state.Length == 0) ? usageText : ((usageText.Length == 0) ? state : (state + "；" + usageText));
+			if (appButton.AccessibleDescription != description)
+			{
+				appButton.AccessibleDescription = description;
 			}
 		}
 
@@ -1365,8 +1339,6 @@ namespace AISwitchDesk
 			if (exitMenu != null) exitMenu.ApplyTheme();
 			if (askBox != null) askBox.ApplyTheme();
 			ApplyTrayTheme();
-			usagePopup.ApplyTheme();
-			if (usagePopup.Visible) usagePopup.Display(QuotaTitle, usage[selected], dpi);
 			return true;
 		}
 
@@ -1447,10 +1419,6 @@ namespace AISwitchDesk
 				settings.Hide();
 				return;
 			}
-			if (usagePopup.Visible)
-			{
-				usagePopup.Close();
-			}
 			if (settings == null)
 			{
 				settings = new SettingsWindow(this);
@@ -1528,7 +1496,6 @@ namespace AISwitchDesk
 			{
 				askBox.Dispose();
 			}
-			usagePopup.Close();
 			SavePosition();
 			DisposeTray();
 			base.OnFormClosing(e);
@@ -1546,7 +1513,6 @@ namespace AISwitchDesk
 				transferMotion.Dispose();
 				poll.Dispose();
 				tips.Dispose();
-				usagePopup.Dispose();
 				if (dropTargets != null) dropTargets.Dispose();
 				if (backdrop != null)
 				{

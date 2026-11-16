@@ -273,7 +273,7 @@
               <StackPanel Name="ClaudeCard" Margin="1,11,0,7"/>
             </StackPanel>
           </ScrollViewer>
-          <DockPanel Grid.Row="1" LastChildFill="False" VerticalAlignment="Center" ToolTip="余额低于所选比例时，用量环变为琥珀色">
+          <DockPanel Grid.Row="1" LastChildFill="False" VerticalAlignment="Center" ToolTip="余额低于所选比例时，应用图标上的用量环变为琥珀色">
             <TextBlock Text="低量提醒" Style="{StaticResource Caption}" Margin="1,0,10,0"/>
             <RadioButton Name="Alert0" GroupName="Threshold" Style="{StaticResource Percent}" Content="关闭"/>
             <RadioButton Name="Alert10" GroupName="Threshold" Style="{StaticResource Percent}" Content="10%"/>
