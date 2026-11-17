@@ -108,6 +108,16 @@ class Verify
         Func<DateTime,long> epoch = local => new DateTimeOffset(local).ToUnixTimeSeconds();
         Check((long)field(rows[0], "ResetEpoch") == epoch(new DateTime(2026, 11, 16, 5, 0, 0)), "a bare time resets at its next occurrence");
         Check((long)field(rows[1], "ResetEpoch") == epoch(new DateTime(2026, 11, 21, 21, 0, 0)), "a weekday and time resets on that day");
+        // The usage panel in Code words them differently: the session is "5 小时限额",
+        // and each weekly bar starts with "每周", whether it is the week's or one model's.
+        string[] panelText = { "21:30 重置", "5 小时限额", "已使用 17%", "周六21:00 重置", "每周限额", "已使用 42%", "周六21:00 重置", "每周 Fable 限额", "已使用 82%" };
+        double[] panelUsed = { -1, 17, -1, -1, 42, -1, -1, 82, -1 };
+        var panel = ((System.Collections.IEnumerable)field(Call(bars, panelText, panelUsed, read), "Rows")).Cast<object>().ToArray();
+        Check(panel.Select(r => (string)field(r, "Window")).SequenceEqual(new[] { "当前会话", "每周", "仅 Fable" }), "the same three allowances under their other names");
+        Check(panel.Select(r => (double)field(r, "Remaining")).SequenceEqual(new[] { 83.0, 58.0, 18.0 }), "one model's weekly share is not the week's allowance");
+        var windowName = newApp.GetType("AISwitchDesk.PlanUsage").GetMethod("ClaudeWindow", BindingFlags.Static | BindingFlags.NonPublic);
+        Check((string)Call(windowName, "All models") == "每周" && (string)Call(windowName, "每周限额（所有模型）") == "每周" &&
+            (string)Call(windowName, "Sonnet only") == "Sonnet only" && (string)Call(windowName, "5-hour limit") == "当前会话", "allowance names across layouts");
         var resetAt = newApp.GetType("AISwitchDesk.PlanUsage").GetMethod("ResetEpoch", BindingFlags.Static | BindingFlags.NonPublic);
         Check((long)Call(resetAt, "Resets in 3 hr 12 min", read) == epoch(read.AddMinutes(192)), "relative reset time");
         Check((long)Call(resetAt, "Resets Sat 9:00 PM", read) == epoch(new DateTime(2026, 11, 21, 21, 0, 0)), "English weekday reset time");

@@ -196,18 +196,41 @@ namespace AISwitchDesk
 
 		private const string ClaudeUsageLink = "claude://claude.ai/settings/usage";
 
-		private const string ClaudeSession = "^(current session|当前(会话|时段|工作阶段)|本次(会话|工作阶段)|目前的?工作階段|當前工作階段)$";
+		// Claude words the same allowance differently in different places: the
+		// settings page says "当前会话", the usage panel in Code says "5 小时限额".
+		private const string ClaudeSession = "^(current session|5[\\s\\-]*hours?\\b.*|[5五]\\s*小[时時].*|当前(会话|时段|工作阶段)|本次(会话|工作阶段)|目前的?工作階段|當前工作階段)$";
 
-		private const string ClaudeWeek = "^(this week|weekly( limits?)?|all models|本[周週]|每[周週].*|周限额|週使用量限制|所有模型|全部模型)$";
+		// Words that say "the week's allowance" without naming a model.
+		private const string ClaudeWeekWords = "this week|weekly|all models|limits?|usage|本[周週]|每[周週]|周限额|限额|限額|限制|用量|额度|額度|所有模型|全部模型";
+
+		// The name an allowance is kept under: "当前会话", "每周", or "仅 " and a
+		// model's name for that model's share. "每周 Fable 限额" is such a share,
+		// not the week's allowance.
+		internal static string ClaudeWindow(string label)
+		{
+			label = (label ?? "").Trim();
+			if (Regex.IsMatch(label, ClaudeSession, RegexOptions.IgnoreCase))
+			{
+				return "当前会话";
+			}
+			if (Regex.IsMatch(label, "(?:only|^仅|^僅)", RegexOptions.IgnoreCase))
+			{
+				return label;
+			}
+			string model = Regex.Replace(label, ClaudeWeekWords, " ", RegexOptions.IgnoreCase);
+			model = Regex.Replace(model, "[\\s·・:：()（）\\-–—|/]+", " ").Trim();
+			return (model.Length == 0) ? "每周" : ("仅 " + model);
+		}
 
 		// Headings that follow the plan's own allowances: reset coupons, bought
 		// credits, and how the week's use splits between products.
 		private const string ClaudeOtherSections = "^(限额重置|limit resets?|用量额度|usage credits|extra usage|额外用量|額外用量|使用额度|用量点数|用量點數|.*各产品.*|.*各產品.*|.*by product.*)$";
 
+		// A bar for the session or for a week, however it is worded.
 		private static bool IsAllowanceBar(AutomationElement bar)
 		{
 			string name = ChatUi.Name(bar);
-			return Regex.IsMatch(name, ClaudeSession, RegexOptions.IgnoreCase) || Regex.IsMatch(name, ClaudeWeek, RegexOptions.IgnoreCase);
+			return Regex.IsMatch(name, ClaudeSession, RegexOptions.IgnoreCase) || Regex.IsMatch(name, "week|[周週]", RegexOptions.IgnoreCase);
 		}
 
 		// The claude.ai page holding the usage figures, when Claude is showing them.
@@ -272,7 +295,8 @@ namespace AISwitchDesk
 			string seen = null;
 			AutomationElement page = null;
 			Stopwatch clock = Stopwatch.StartNew();
-			while (clock.ElapsedMilliseconds < 12000)
+			// The page usually fills in within three seconds, but can sit on "加载中" much longer.
+			while (clock.ElapsedMilliseconds < 20000)
 			{
 				Thread.Sleep(400);
 				try
@@ -438,18 +462,23 @@ namespace AISwitchDesk
 				{
 					continue;
 				}
-				bool session = Regex.IsMatch(line, ClaudeSession, RegexOptions.IgnoreCase);
-				bool week = Regex.IsMatch(line, ClaudeWeek, RegexOptions.IgnoreCase);
-				// Any other bar counts only with a reset time of its own, which
-				// the bars of the per-product split do not have.
-				if (reset == null && !session && !week)
+				string window = ClaudeWindow(line);
+				// A bar for one model, or for anything else, counts only with a
+				// reset time of its own, which the per-product split's bars lack.
+				if (reset == null && window != "当前会话" && window != "每周")
 				{
+					continue;
+				}
+				// The same allowance shown twice is kept once.
+				if (report.Rows.Any((Allowance row) => row.Window == window))
+				{
+					reset = null;
 					continue;
 				}
 				string after = (i + 1 < text.Length && used[i + 1] < 0.0) ? (text[i + 1] ?? "") : "";
 				bool left = Regex.IsMatch(after, "[%％]") && Regex.IsMatch(after, "remaining|left|剩余|剩餘|可用", RegexOptions.IgnoreCase);
 				Allowance allowance = new Allowance();
-				allowance.Window = session ? "当前会话" : (week ? "每周" : (Regex.IsMatch(line, "(?:only|^仅|^僅)", RegexOptions.IgnoreCase) ? line : ("仅 " + line)));
+				allowance.Window = window;
 				allowance.Remaining = left ? used[i] : (100.0 - used[i]);
 				allowance.Reset = reset;
 				allowance.ResetEpoch = ResetEpoch(reset, now);
