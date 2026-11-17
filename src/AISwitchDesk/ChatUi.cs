@@ -628,28 +628,35 @@ namespace AISwitchDesk
 		internal void OpenNewDraft(string app)
 		{
 			Guard();
-			AutomationElement before = Editor();
+			// Claude can be on a page with no input box at all, such as Code or settings.
+			AutomationElement before = null;
+			try { before = Editor(); }
+			catch (InvalidOperationException) { if (app != "Claude") throw; }
 			string previousPage = PageKey();
-			int[] previousEditor = before.GetRuntimeId();
+			int[] previousEditor = before == null ? new int[0] : before.GetRuntimeId();
 			bool previousHistory = HasConversationHistory(app);
-			DropTrace.Write(app,"new-chat-before page=" + previousPage + " history=" + previousHistory + " editor=" + Name(before));
-			AutomationElement control = Of(Root, ControlType.Button).Concat(Of(Root, ControlType.Hyperlink))
-				.FirstOrDefault(e => !e.Current.IsOffscreen && e.Current.IsEnabled &&
-					(Match(Name(e), "^(新聊天|新建聊天|新对话|新建对话|新增對話|新任务|新建任务|New chat|Start new chat|New conversation|New thread|New task)(?:\\s*[\\(（].*|\\s+(?:Ctrl|Control|⌘).*)?$") ||
-					 Match(e.Current.AutomationId, "^(new-chat-button|new-thread-button|new-conversation-button)$")));
-			if (control == null && app == "Claude")
+			DropTrace.Write(app,"new-chat-before page=" + previousPage + " history=" + previousHistory + " editor=" + (before == null ? "(none)" : Name(before)));
+			if (app == "Claude")
 			{
-				control = Of(Root, ControlType.Hyperlink).FirstOrDefault(e =>
+				// Claude's own link opens a blank chat from whatever the app is
+				// showing. Its buttons are not searched: the one the names below
+				// match, "新建任务", starts a Cowork task and never reaches a chat.
+				ProcessStartInfo link = new ProcessStartInfo("claude://claude.ai/new");
+				link.UseShellExecute = true;
+				using (Process.Start(link))
 				{
-					ValuePattern value = Pattern<ValuePattern>(e, ValuePattern.Pattern);
-					Uri uri;
-					return !e.Current.IsOffscreen && e.Current.IsEnabled && value != null &&
-						Uri.TryCreate(value.Current.Value, UriKind.Absolute, out uri) &&
-						uri.Host == "claude.ai" && uri.AbsolutePath.TrimEnd('/') == "/new";
-				});
+				}
+				DropTrace.Write(app, "new-chat-link");
 			}
-			if (control == null) throw new InvalidOperationException("未找到「新建聊天」入口。请在目标 AI 中手动新建聊天，再拖入文件并选择「放入当前对话」。");
-			Act(control);
+			else
+			{
+				AutomationElement control = Of(Root, ControlType.Button).Concat(Of(Root, ControlType.Hyperlink))
+					.FirstOrDefault(e => !e.Current.IsOffscreen && e.Current.IsEnabled &&
+						(Match(Name(e), "^(新聊天|新建聊天|新对话|新建对话|新增對話|新任务|新建任务|New chat|Start new chat|New conversation|New thread|New task)(?:\\s*[\\(（].*|\\s+(?:Ctrl|Control|⌘).*)?$") ||
+						 Match(e.Current.AutomationId, "^(new-chat-button|new-thread-button|new-conversation-button)$")));
+				if (control == null) throw new InvalidOperationException("未找到「新建聊天」入口。请在目标 AI 中手动新建聊天，再拖入文件并选择「放入当前对话」。");
+				Act(control);
+			}
 			Thread.Sleep(250);
 			int stable = 0;
 			string lastNewState = null;

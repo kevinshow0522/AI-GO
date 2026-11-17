@@ -83,7 +83,9 @@ namespace AISwitchDesk
         {
             try
             {
-                view.WaitForEditor();
+                // Claude gets there by its own link, whatever page it is on, so it
+                // need not be showing an input box first.
+                if (app != "Claude") view.WaitForEditor();
                 if (!ClientInput.TryUse(app, delegate { view.OpenNewDraft(app); })) return "正在后台处理文件，稍后再试";
                 return null;
             }
