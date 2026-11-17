@@ -22,13 +22,37 @@
         </Grid>
       </ControlTemplate></Setter.Value></Setter>
     </Style>
+    <Style x:Key="Tick" TargetType="CheckBox">
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="VerticalAlignment" Value="Center"/>
+      <Setter Property="Foreground" Value="{DynamicResource ThemeInk}"/>
+      <Setter Property="FontSize" Value="12"/>
+      <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="CheckBox">
+        <StackPanel Orientation="Horizontal" Background="Transparent">
+          <Border x:Name="tick" Width="16" Height="16" CornerRadius="4.5" BorderThickness="1.2"
+                  BorderBrush="{DynamicResource ThemeMuted}" Background="Transparent">
+            <Path x:Name="mark" Data="M 3.6,8 L 6.6,10.8 L 12,5.2" Stroke="{DynamicResource ThemeOnAccent}" StrokeThickness="1.6"
+                  StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Visibility="Hidden"/>
+          </Border>
+          <ContentPresenter Margin="7,0,0,0" VerticalAlignment="Center"/>
+        </StackPanel>
+        <ControlTemplate.Triggers>
+          <Trigger Property="IsChecked" Value="True">
+            <Setter TargetName="tick" Property="Background" Value="{DynamicResource ThemeAccent}"/>
+            <Setter TargetName="tick" Property="BorderBrush" Value="{DynamicResource ThemeAccent}"/>
+            <Setter TargetName="mark" Property="Visibility" Value="Visible"/>
+          </Trigger>
+          <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value=".55"/></Trigger>
+        </ControlTemplate.Triggers>
+      </ControlTemplate></Setter.Value></Setter>
+    </Style>
   </Window.Resources>
   <Border Name="Surface" Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeRule}" BorderThickness="1" CornerRadius="14" Padding="14,11,14,12">
     <Grid>
       <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
       <DockPanel LastChildFill="False">
         <TextBlock Text="同时提问" FontWeight="SemiBold" FontSize="14" VerticalAlignment="Center"/>
-        <TextBlock Text="发到两边当前的对话" Margin="8,1,0,0" FontSize="12" Foreground="{DynamicResource ThemeMuted}" VerticalAlignment="Center"/>
+        <TextBlock Name="Scope" Text="两边各新开一个对话" Margin="8,1,0,0" FontSize="12" Foreground="{DynamicResource ThemeMuted}" VerticalAlignment="Center"/>
       </DockPanel>
       <Grid Grid.Row="1" Margin="0,9,0,9">
         <TextBox Name="Prompt" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
@@ -50,26 +74,9 @@
       <TextBlock Name="Status" Grid.Row="2" Margin="1,0,0,8" FontSize="12" TextWrapping="Wrap"
                  Foreground="{DynamicResource ThemeMuted}" Visibility="Collapsed"/>
       <DockPanel Grid.Row="3" LastChildFill="False">
-        <CheckBox Name="Arrange" IsChecked="True" Cursor="Hand" VerticalAlignment="Center" Foreground="{DynamicResource ThemeInk}" FontSize="12">
-          <CheckBox.Template><ControlTemplate TargetType="CheckBox">
-            <StackPanel Orientation="Horizontal" Background="Transparent">
-              <Border x:Name="tick" Width="16" Height="16" CornerRadius="4.5" BorderThickness="1.2"
-                      BorderBrush="{DynamicResource ThemeMuted}" Background="Transparent">
-                <Path x:Name="mark" Data="M 3.6,8 L 6.6,10.8 L 12,5.2" Stroke="{DynamicResource ThemeOnAccent}" StrokeThickness="1.6"
-                      StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Visibility="Hidden"/>
-              </Border>
-              <ContentPresenter Margin="7,0,0,0" VerticalAlignment="Center"/>
-            </StackPanel>
-            <ControlTemplate.Triggers>
-              <Trigger Property="IsChecked" Value="True">
-                <Setter TargetName="tick" Property="Background" Value="{DynamicResource ThemeAccent}"/>
-                <Setter TargetName="tick" Property="BorderBrush" Value="{DynamicResource ThemeAccent}"/>
-                <Setter TargetName="mark" Property="Visibility" Value="Visible"/>
-              </Trigger>
-            </ControlTemplate.Triggers>
-          </ControlTemplate></CheckBox.Template>
-          发送后并排显示
-        </CheckBox>
+        <CheckBox Name="Fresh" Style="{StaticResource Tick}" IsChecked="True" Content="新开对话"
+                  ToolTip="两边同时切到新对话再发送；取消则发到两边当前的对话"/>
+        <CheckBox Name="Arrange" Style="{StaticResource Tick}" IsChecked="True" Margin="12,0,0,0" Content="并排显示"/>
         <Button Name="Send" DockPanel.Dock="Right" Cursor="Hand" IsDefault="False" Padding="16,5"
                 AutomationProperties.Name="发送到两边" Foreground="{DynamicResource ThemeOnAccent}">
           <Button.Template><ControlTemplate TargetType="Button">

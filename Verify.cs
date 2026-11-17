@@ -75,7 +75,7 @@ class Verify
         Console.WriteLine("Testing " + newApp.FullName + " at " + newApp.Location);
         foreach (var name in oldApp.GetManifestResourceNames())
         {
-            if (name == "Settings.xaml" || name == "ExitMenu.xaml")
+            if (name == "Settings.xaml" || name == "ExitMenu.xaml" || name == "Ask.xaml")
             {
                 CheckWindowControls(oldApp,newApp,name);
                 if (name == "Settings.xaml")

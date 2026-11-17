@@ -14,15 +14,16 @@ using System.Windows.Markup;
 namespace AISwitchDesk
 {
     // The small window behind the rail's "ask both" button: one text box whose
-    // contents go to the current ChatGPT and Claude conversations at once.
+    // contents go to ChatGPT and Claude at once, in a new conversation on each
+    // side unless that is switched off.
     internal sealed class AskBox : IDisposable
     {
         private readonly DeskForm desk;
         private readonly Window window;
         private readonly System.Windows.Controls.TextBox prompt;
-        private readonly TextBlock hint, status, sendLabel;
+        private readonly TextBlock hint, status, sendLabel, scope;
         private readonly System.Windows.Controls.Button send;
-        private readonly System.Windows.Controls.CheckBox arrange;
+        private readonly System.Windows.Controls.CheckBox arrange, fresh;
         private readonly OutsideClick outside;
         private readonly IntPtr handle;
         private bool sending, disposed;
@@ -47,6 +48,11 @@ namespace AISwitchDesk
             sendLabel = (TextBlock)window.FindName("SendLabel");
             send = (System.Windows.Controls.Button)window.FindName("Send");
             arrange = (System.Windows.Controls.CheckBox)window.FindName("Arrange");
+            fresh = (System.Windows.Controls.CheckBox)window.FindName("Fresh");
+            scope = (TextBlock)window.FindName("Scope");
+            RoutedEventHandler choice = delegate { Refresh(); };
+            fresh.Checked += choice;
+            fresh.Unchecked += choice;
             ApplyTheme();
             handle = new WindowInteropHelper(window) { Owner = owner.Handle }.EnsureHandle();
             // A click outside closes the box, but not while it is sending: arranging
@@ -125,6 +131,8 @@ namespace AISwitchDesk
             send.IsEnabled = !sending && prompt.Text.Trim().Length > 0;
             prompt.IsEnabled = !sending;
             arrange.IsEnabled = !sending;
+            fresh.IsEnabled = !sending;
+            scope.Text = fresh.IsChecked == true ? "两边各新开一个对话" : "发到两边当前的对话";
             sendLabel.Text = sending ? "正在发送…" : "发送到两边";
         }
 
@@ -144,7 +152,7 @@ namespace AISwitchDesk
             AskResult result;
             try
             {
-                result = await desk.AskBoth(text, arrange.IsChecked == true);
+                result = await desk.AskBoth(text, arrange.IsChecked == true, fresh.IsChecked == true);
             }
             finally
             {

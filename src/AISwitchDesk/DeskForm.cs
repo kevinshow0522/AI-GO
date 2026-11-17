@@ -320,7 +320,7 @@ namespace AISwitchDesk
 			{
 				OpenAsk();
 			};
-			tips.SetToolTip(buttons[(int)RailAction.Ask], "同时提问 · 一段话发到 ChatGPT 和 Claude 当前的对话");
+			tips.SetToolTip(buttons[(int)RailAction.Ask], "同时提问 · 一段话同时发给 ChatGPT 和 Claude，两边各新开一个对话");
 			buttons[(int)RailAction.Settings].Click += delegate
 			{
 				OpenSettings();
