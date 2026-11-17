@@ -1137,6 +1137,7 @@ namespace AISwitchDesk
 				if (exitMenu == null)
 				{
 					exitMenu = new AppExitMenu(this, QuitApp);
+					exitMenu.RefreshUsage = RefreshUsageFromMenu;
 				}
 				exitMenu.Show(index, anchor, !clients[index].Quitting, fromKeyboard);
 			}
@@ -1264,9 +1265,9 @@ namespace AISwitchDesk
 					int lineEnd = text.IndexOf('\n');
 					text = text.Insert((lineEnd < 0) ? text.Length : lineEnd, "，低于 " + threshold + "% 提醒线");
 				}
-				else if (allowance == null && i == 1 && !usageSlot.Reading)
+				else if (allowance == null && !usageSlot.Reading)
 				{
-					text += "\n在 Claude 打开「设置 → 用量」后自动读取";
+					text += "\n右键图标可刷新用量";
 				}
 				usageTip[i] = text;
 				DescribeApp(i);
@@ -1364,38 +1365,52 @@ namespace AISwitchDesk
 			}
 		}
 
+		// A refresh the person asked for. The timer never calls this for Claude:
+		// left to itself the sidebar only reads Claude's usage page while it
+		// happens to be open, so it never moves a conversation aside unasked.
 		internal Task RefreshQuota(int index)
 		{
 			if (index == 0)
 			{
 				return usage[0].Refresh(PlanUsage.OpenAI);
 			}
-			// Reading never moves the Claude window to another page. The figures
-			// come from the usage page only while the person has it open.
+			return RefreshClaude();
+		}
+
+		// Opens Claude's usage page, reads it, and closes it again.
+		private async Task RefreshClaude()
+		{
 			IntPtr target = KnownWindow("Claude");
-			return usage[1].Refresh(delegate
+			IntPtr before = Native.GetForegroundWindow();
+			await usage[1].Refresh(delegate
 			{
 				if (target == IntPtr.Zero)
 				{
-					throw new IOException("未找到 Claude 窗口。");
+					throw new IOException("未找到 Claude 窗口。打开 Claude 后再刷新。");
 				}
-				PlanReport result = null;
-				try
-				{
-					result = PlanUsage.OpenClaudeUsage(target);
-				}
-				catch (ElementNotAvailableException)
-				{
-				}
-				catch (System.Runtime.InteropServices.COMException)
-				{
-				}
-				if (result == null)
-				{
-					throw new IOException("为了不打断对话，侧栏不会替你跳转页面。在 Claude 打开「设置 → 用量」，这里会自动更新。");
-				}
-				return result;
+				return PlanUsage.FetchClaudeUsage(target);
 			});
+			// Opening the page brought Claude forward. Give the screen back.
+			if (!closing && before != IntPtr.Zero && before != target && Native.IsWindow(before) && Native.IsWindowVisible(before) && Native.GetForegroundWindow() == target)
+			{
+				Native.SetForegroundWindow(before);
+			}
+		}
+
+		// "刷新用量" in an app icon's menu.
+		private async void RefreshUsageFromMenu(int index)
+		{
+			if (closing)
+			{
+				return;
+			}
+			await RefreshQuota(index);
+			if (closing)
+			{
+				return;
+			}
+			string error = usage[index].Error;
+			Notice(index, string.IsNullOrEmpty(error) ? usage[index].Tip((index == 0) ? "Codex 用量" : "Claude 用量") : error);
 		}
 
 		private void HideSettings()

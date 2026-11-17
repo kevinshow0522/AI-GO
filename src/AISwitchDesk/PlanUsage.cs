@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -193,49 +194,354 @@ namespace AISwitchDesk
 			return uri;
 		}
 
-		internal static PlanReport OpenClaudeUsage(IntPtr window)
+		private const string ClaudeUsageLink = "claude://claude.ai/settings/usage";
+
+		private const string ClaudeSession = "^(current session|当前(会话|时段|工作阶段)|本次(会话|工作阶段)|目前的?工作階段|當前工作階段)$";
+
+		private const string ClaudeWeek = "^(this week|weekly( limits?)?|all models|本[周週]|每[周週].*|周限额|週使用量限制|所有模型|全部模型)$";
+
+		// Headings that follow the plan's own allowances: reset coupons, bought
+		// credits, and how the week's use splits between products.
+		private const string ClaudeOtherSections = "^(限额重置|limit resets?|用量额度|usage credits|extra usage|额外用量|額外用量|使用额度|用量点数|用量點數|.*各产品.*|.*各產品.*|.*by product.*)$";
+
+		private static bool IsAllowanceBar(AutomationElement bar)
+		{
+			string name = ChatUi.Name(bar);
+			return Regex.IsMatch(name, ClaudeSession, RegexOptions.IgnoreCase) || Regex.IsMatch(name, ClaudeWeek, RegexOptions.IgnoreCase);
+		}
+
+		// The claude.ai page holding the usage figures, when Claude is showing them.
+		private static AutomationElement ClaudeUsagePage(IntPtr window)
 		{
 			if (window == IntPtr.Zero || !Native.IsWindow(window))
 			{
 				return null;
 			}
-			foreach (AutomationElement item in ChatUi.Of(AutomationElement.FromHandle(window), ControlType.Document).Reverse())
+			try
 			{
-				Uri uri = ClaudePage(item);
-				if (uri != null && uri.AbsolutePath.TrimEnd('/') == "/settings/usage")
+				AutomationElement[] pages = ChatUi.Of(AutomationElement.FromHandle(window), ControlType.Document).Reverse().Where((AutomationElement item) => ClaudePage(item) != null).ToArray();
+				foreach (AutomationElement item in pages)
 				{
-					return ReadClaudePage(item);
+					if (ClaudePage(item).AbsolutePath.TrimEnd('/') == "/settings/usage")
+					{
+						return item;
+					}
 				}
+				// Settings opens as a layer over the page Claude was on, and the
+				// address can stay that page's. The allowance bars then tell.
+				foreach (AutomationElement item in pages)
+				{
+					if (ChatUi.Of(item, ControlType.ProgressBar).Any(IsAllowanceBar))
+					{
+						return item;
+					}
+				}
+			}
+			catch (ElementNotAvailableException)
+			{
 			}
 			return null;
 		}
 
-		private static PlanReport ReadClaudePage(AutomationElement doc)
+		// Reads the usage page if it is open. Never opens it.
+		internal static PlanReport OpenClaudeUsage(IntPtr window)
 		{
-			List<string> list = new List<string>();
-			foreach (AutomationElement item in doc.FindAll(TreeScope.Descendants, Condition.TrueCondition).Cast<AutomationElement>())
+			AutomationElement page = ClaudeUsagePage(window);
+			PlanReport report = (page == null) ? null : ReadClaudePage(page);
+			return (report == null) ? null : Save("Claude", report);
+		}
+
+		// For when the person asks for a fresh reading: opens the usage page,
+		// waits for its figures, and closes it again so Claude is back where it was.
+		internal static PlanReport FetchClaudeUsage(IntPtr window)
+		{
+			if (window == IntPtr.Zero || !Native.IsWindow(window))
 			{
-				ControlType controlType = item.Current.ControlType;
-				string text = ChatUi.Name(item);
-				if (controlType == ControlType.ProgressBar)
+				throw new IOException("未找到 Claude 窗口。");
+			}
+			bool alreadyOpen = ClaudeUsagePage(window) != null;
+			if (!alreadyOpen)
+			{
+				ProcessStartInfo link = new ProcessStartInfo(ClaudeUsageLink);
+				link.UseShellExecute = true;
+				using (Process.Start(link))
 				{
-					RangeValuePattern rangeValuePattern = ChatUi.Pattern<RangeValuePattern>(item, RangeValuePattern.Pattern);
-					if (rangeValuePattern != null && rangeValuePattern.Current.Maximum == 100.0)
-					{
-						text = rangeValuePattern.Current.Value.ToString(CultureInfo.InvariantCulture) + "% used";
-					}
-				}
-				if (text.Length > 0 && text.Length < 160 && (controlType == ControlType.Text || controlType == ControlType.ProgressBar || controlType == ControlType.Header || controlType == ControlType.Group) && (list.Count == 0 || list[list.Count - 1] != text))
-				{
-					list.Add(text);
 				}
 			}
-			PlanReport planReport = ParseClaude(list);
+			PlanReport latest = null;
+			string seen = null;
+			AutomationElement page = null;
+			Stopwatch clock = Stopwatch.StartNew();
+			while (clock.ElapsedMilliseconds < 12000)
+			{
+				Thread.Sleep(400);
+				try
+				{
+					page = ClaudeUsagePage(window);
+					PlanReport report = (page == null) ? null : ReadClaudePage(page);
+					if (report == null)
+					{
+						continue;
+					}
+					string figures = string.Join("|", report.Rows.Select((Allowance row) => row.Window + "=" + row.Remaining.ToString(CultureInfo.InvariantCulture) + "@" + row.Reset));
+					latest = report;
+					// The same figures twice in a row: the page has finished loading.
+					if (figures == seen)
+					{
+						break;
+					}
+					seen = figures;
+				}
+				catch (ElementNotAvailableException)
+				{
+				}
+				catch (COMException)
+				{
+				}
+			}
+			if (!alreadyOpen && page != null)
+			{
+				CloseClaudeSettings(page);
+			}
+			DropTrace.Write("usage", (latest == null) ? "claude page gave no figures" : ("claude page rows=" + latest.Rows.Count));
+			if (latest == null)
+			{
+				throw new IOException("没能从 Claude 的用量页读到额度，可在 Claude「设置 → 使用情况」里查看。");
+			}
+			return Save("Claude", latest);
+		}
+
+		// Settings is a layer over the page Claude was on; its close button returns
+		// there. It is the last "close" before the allowances, so a banner's own
+		// close button on the page underneath is not taken for it.
+		private static void CloseClaudeSettings(AutomationElement page)
+		{
+			try
+			{
+				AutomationElement close = null;
+				foreach (AutomationElement item in page.FindAll(TreeScope.Descendants, Condition.TrueCondition).Cast<AutomationElement>())
+				{
+					ControlType kind = item.Current.ControlType;
+					if (kind == ControlType.Button && Regex.IsMatch(ChatUi.Name(item), "^(关闭|關閉|close)$", RegexOptions.IgnoreCase))
+					{
+						close = item;
+					}
+					else if (kind == ControlType.ProgressBar && IsAllowanceBar(item))
+					{
+						break;
+					}
+				}
+				InvokePattern press = (close == null) ? null : ChatUi.Pattern<InvokePattern>(close, InvokePattern.Pattern);
+				if (press != null)
+				{
+					press.Invoke();
+				}
+			}
+			catch (ElementNotAvailableException)
+			{
+			}
+			catch (COMException)
+			{
+			}
+			catch (InvalidOperationException)
+			{
+			}
+		}
+
+		private static PlanReport ReadClaudePage(AutomationElement doc)
+		{
+			List<string> text = new List<string>();
+			List<double> used = new List<double>();
+			List<string> lines = new List<string>();
+			foreach (AutomationElement item in doc.FindAll(TreeScope.Descendants, Condition.TrueCondition).Cast<AutomationElement>())
+			{
+				ControlType kind;
+				string name;
+				double bar = -1.0;
+				try
+				{
+					kind = item.Current.ControlType;
+					name = ChatUi.Name(item);
+					if (kind == ControlType.ProgressBar)
+					{
+						RangeValuePattern range = ChatUi.Pattern<RangeValuePattern>(item, RangeValuePattern.Pattern);
+						if (range != null && range.Current.Maximum == 100.0)
+						{
+							bar = range.Current.Value;
+						}
+					}
+				}
+				catch (ElementNotAvailableException)
+				{
+					// The page redraws while it is read. Skip what just went away.
+					continue;
+				}
+				if (kind != ControlType.Text && kind != ControlType.ProgressBar && kind != ControlType.Header && kind != ControlType.Group)
+				{
+					continue;
+				}
+				if (bar >= 0.0)
+				{
+					text.Add(name);
+					used.Add(bar);
+				}
+				else if (name.Length > 0 && name.Length < 160 && kind != ControlType.ProgressBar)
+				{
+					text.Add(name);
+					used.Add(-1.0);
+				}
+				string line = (bar >= 0.0) ? (bar.ToString(CultureInfo.InvariantCulture) + "% used") : name;
+				if (line.Length > 0 && line.Length < 160 && (lines.Count == 0 || lines[lines.Count - 1] != line))
+				{
+					lines.Add(line);
+				}
+			}
+			PlanReport planReport = ParseClaudeBars(text.ToArray(), used.ToArray(), DateTime.Now);
+			if (planReport.Rows.Count == 0)
+			{
+				// An earlier layout of the page: headings and plain text.
+				planReport = ParseClaude(lines);
+			}
 			if (planReport.Rows.Count <= 0)
 			{
 				return null;
 			}
-			return Save("Claude", planReport);
+			return planReport;
+		}
+
+		// The usage page as a flat list in reading order. Each allowance is a
+		// progress bar named after it, holding the percentage used, with its reset
+		// time in the text just before. used[i] is that percentage, or below 0
+		// where text[i] is plain text.
+		internal static PlanReport ParseClaudeBars(string[] text, double[] used, DateTime now)
+		{
+			PlanReport report = new PlanReport();
+			report.Source = "Claude · 官方用量页";
+			string reset = null;
+			for (int i = 0; i < text.Length && i < used.Length; i++)
+			{
+				string line = (text[i] ?? "").Trim();
+				if (used[i] < 0.0)
+				{
+					if (Regex.IsMatch(line, ClaudeOtherSections, RegexOptions.IgnoreCase))
+					{
+						break;
+					}
+					// A reset line is short and names a time.
+					if (line.Length <= 40 && Regex.IsMatch(line, "reset|重置|重設", RegexOptions.IgnoreCase) && Regex.IsMatch(line, "\\d"))
+					{
+						reset = line;
+					}
+					continue;
+				}
+				if (used[i] > 100.0 || line.Length == 0)
+				{
+					continue;
+				}
+				bool session = Regex.IsMatch(line, ClaudeSession, RegexOptions.IgnoreCase);
+				bool week = Regex.IsMatch(line, ClaudeWeek, RegexOptions.IgnoreCase);
+				// Any other bar counts only with a reset time of its own, which
+				// the bars of the per-product split do not have.
+				if (reset == null && !session && !week)
+				{
+					continue;
+				}
+				string after = (i + 1 < text.Length && used[i + 1] < 0.0) ? (text[i + 1] ?? "") : "";
+				bool left = Regex.IsMatch(after, "[%％]") && Regex.IsMatch(after, "remaining|left|剩余|剩餘|可用", RegexOptions.IgnoreCase);
+				Allowance allowance = new Allowance();
+				allowance.Window = session ? "当前会话" : (week ? "每周" : (Regex.IsMatch(line, "(?:only|^仅|^僅)", RegexOptions.IgnoreCase) ? line : ("仅 " + line)));
+				allowance.Remaining = left ? used[i] : (100.0 - used[i]);
+				allowance.Reset = reset;
+				allowance.ResetEpoch = ResetEpoch(reset, now);
+				report.Rows.Add(allowance);
+				reset = null;
+			}
+			return report;
+		}
+
+		// When a line such as "5:00 重置", "星期六21:00 重置" or "Resets in 3 hr 12 min"
+		// falls, as Unix seconds. 0 when the line does not say clearly.
+		internal static long ResetEpoch(string reset, DateTime now)
+		{
+			if (string.IsNullOrEmpty(reset))
+			{
+				return 0L;
+			}
+			DateTime at;
+			Match clock = Regex.Match(reset, "(\\d{1,2})[:：](\\d{2})");
+			if (clock.Success)
+			{
+				int hour = int.Parse(clock.Groups[1].Value, CultureInfo.InvariantCulture);
+				int minute = int.Parse(clock.Groups[2].Value, CultureInfo.InvariantCulture);
+				if (hour < 12 && Regex.IsMatch(reset, "下午|晚上|pm\\b|p\\.m\\.", RegexOptions.IgnoreCase))
+				{
+					hour += 12;
+				}
+				else if (hour == 12 && Regex.IsMatch(reset, "上午|凌晨|am\\b|a\\.m\\.", RegexOptions.IgnoreCase))
+				{
+					hour = 0;
+				}
+				if (hour > 23 || minute > 59)
+				{
+					return 0L;
+				}
+				TimeSpan time = new TimeSpan(hour, minute, 0);
+				Match date = Regex.Match(reset, "(\\d{1,2})\\s*月\\s*(\\d{1,2})\\s*日");
+				Match weekday = Regex.Match(reset, "(?:星期|礼拜|禮拜|周|週)([一二三四五六日天])|\\b(sun|mon|tue|wed|thu|fri|sat)", RegexOptions.IgnoreCase);
+				if (date.Success)
+				{
+					int month = int.Parse(date.Groups[1].Value, CultureInfo.InvariantCulture);
+					int day = int.Parse(date.Groups[2].Value, CultureInfo.InvariantCulture);
+					if (month < 1 || month > 12 || day < 1 || day > DateTime.DaysInMonth(now.Year, month))
+					{
+						return 0L;
+					}
+					at = new DateTime(now.Year, month, day) + time;
+					if (at <= now)
+					{
+						at = at.AddYears(1);
+					}
+				}
+				else if (Regex.IsMatch(reset, "(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\\.?\\s+\\d{1,2}|\\d{1,2}/\\d{1,2}", RegexOptions.IgnoreCase))
+				{
+					// A calendar date in a form this does not read.
+					return 0L;
+				}
+				else if (weekday.Success)
+				{
+					int target = weekday.Groups[1].Success
+						? "日一二三四五六".IndexOf(weekday.Groups[1].Value.Replace('天', '日'), StringComparison.Ordinal)
+						: Array.IndexOf(new string[7] { "sun", "mon", "tue", "wed", "thu", "fri", "sat" }, weekday.Groups[2].Value.ToLowerInvariant());
+					at = now.Date.AddDays((target - (int)now.DayOfWeek + 7) % 7) + time;
+					if (at <= now)
+					{
+						at = at.AddDays(7.0);
+					}
+				}
+				else
+				{
+					at = now.Date + time;
+					if (at <= now)
+					{
+						at = at.AddDays(1.0);
+					}
+				}
+			}
+			else
+			{
+				Match days = Regex.Match(reset, "(\\d+)\\s*(?:天|days?)", RegexOptions.IgnoreCase);
+				Match hours = Regex.Match(reset, "(\\d+)\\s*(?:小时|小時|hours?|hrs?)", RegexOptions.IgnoreCase);
+				Match minutes = Regex.Match(reset, "(\\d+)\\s*(?:分钟|分鐘|minutes?|mins?)", RegexOptions.IgnoreCase);
+				if (!days.Success && !hours.Success && !minutes.Success)
+				{
+					return 0L;
+				}
+				at = now;
+				if (days.Success) at = at.AddDays(Math.Min(400, int.Parse(days.Groups[1].Value, CultureInfo.InvariantCulture)));
+				if (hours.Success) at = at.AddHours(Math.Min(9600, int.Parse(hours.Groups[1].Value, CultureInfo.InvariantCulture)));
+				if (minutes.Success) at = at.AddMinutes(Math.Min(576000, int.Parse(minutes.Groups[1].Value, CultureInfo.InvariantCulture)));
+			}
+			return new DateTimeOffset(DateTime.SpecifyKind(at, DateTimeKind.Local)).ToUnixTimeSeconds();
 		}
 
 		internal static PlanReport ParseClaude(IEnumerable<string> lines)

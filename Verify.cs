@@ -91,6 +91,27 @@ class Verify
             Check(newApp.GetType(oldType.FullName) != null, "type: " + oldType.FullName);
         Check(newApp.GetType("AISwitchDesk.UsagePopup") == null && !Enum.GetNames(newApp.GetType("AISwitchDesk.RailAction")).Contains("Usage"),
             "no separate usage button or popup");
+        // Claude's usage page as it reads today, in order: text, and progress bars
+        // with the percentage used. Three allowances, then sections that are not.
+        var bars = newApp.GetType("AISwitchDesk.PlanUsage").GetMethod("ParseClaudeBars", BindingFlags.Static | BindingFlags.NonPublic);
+        Check(bars != null, "Claude usage is read from the page's progress bars");
+        string[] pageText = { "您的用量", "当前会话", "5:00 重置", "当前会话", "已使用 29%", "星期六21:00 重置", "本周", "已使用 26%",
+            "Fable", "最多可使用您每周限额的 50%", "星期六21:00 重置", "Fable", "已使用 49%",
+            "限额重置", "完全重置", "补满您的 5 小时限额和 Fable 额度。不会重置您每周限额中的全部用量。", "用量额度",
+            "本周各产品的用量", "Claude Code", "Claude Code", "74%", "对话", "对话", "0%" };
+        double[] pageUsed = { -1, -1, -1, 29, -1, -1, 26, -1, -1, -1, -1, 49, -1, -1, -1, -1, -1, -1, -1, 74, -1, -1, 0, -1 };
+        var read = new DateTime(2026, 11, 16, 1, 57, 0);
+        Func<object,string,object> field = (target, name) => target.GetType().GetField(name).GetValue(target);
+        var rows = ((System.Collections.IEnumerable)field(Call(bars, pageText, pageUsed, read), "Rows")).Cast<object>().ToArray();
+        Check(rows.Select(r => (string)field(r, "Window")).SequenceEqual(new[] { "当前会话", "每周", "仅 Fable" }), "Claude allowances: session, week, one model; no per-product rows");
+        Check(rows.Select(r => (double)field(r, "Remaining")).SequenceEqual(new[] { 71.0, 74.0, 51.0 }), "Claude bars hold the percentage used");
+        Func<DateTime,long> epoch = local => new DateTimeOffset(local).ToUnixTimeSeconds();
+        Check((long)field(rows[0], "ResetEpoch") == epoch(new DateTime(2026, 11, 16, 5, 0, 0)), "a bare time resets at its next occurrence");
+        Check((long)field(rows[1], "ResetEpoch") == epoch(new DateTime(2026, 11, 21, 21, 0, 0)), "a weekday and time resets on that day");
+        var resetAt = newApp.GetType("AISwitchDesk.PlanUsage").GetMethod("ResetEpoch", BindingFlags.Static | BindingFlags.NonPublic);
+        Check((long)Call(resetAt, "Resets in 3 hr 12 min", read) == epoch(read.AddMinutes(192)), "relative reset time");
+        Check((long)Call(resetAt, "Resets Sat 9:00 PM", read) == epoch(new DateTime(2026, 11, 21, 21, 0, 0)), "English weekday reset time");
+        Check((long)Call(resetAt, "Resets Nov 21 at 9:00 PM", read) == 0, "an unread date form stays unknown rather than wrong");
         var method = newApp.GetType("AISwitchDesk.ChatUi").GetMethod("NewDraftState", BindingFlags.Static | BindingFlags.NonPublic);
         Check(method != null,"new-chat state verifier is available");
         Func<string,string,string,bool,bool,bool,bool,bool> state = (app,oldPage,page,editorChanged,oldHistory,history,draft) =>

@@ -18,6 +18,11 @@ namespace AISwitchDesk
 
 		private readonly System.Windows.Controls.Button item;
 
+		private readonly System.Windows.Controls.Button usageItem;
+
+		// Asks for a fresh reading of the app's plan allowance.
+		internal Action<int> RefreshUsage;
+
 		private readonly OutsideClick outside;
 
 		private readonly IntPtr handle;
@@ -35,6 +40,7 @@ namespace AISwitchDesk
 			}
 			ApplyTheme();
 			item = (System.Windows.Controls.Button)window.FindName("Quit");
+			usageItem = (System.Windows.Controls.Button)window.FindName("Usage");
 			WindowInteropHelper windowInteropHelper = new WindowInteropHelper(window)
 			{
 				Owner = owner.Handle
@@ -66,7 +72,7 @@ namespace AISwitchDesk
 			};
 			window.PreviewMouseDown += delegate
 			{
-				if (!item.IsMouseOver)
+				if (!item.IsMouseOver && !usageItem.IsMouseOver)
 				{
 					Hide();
 				}
@@ -86,6 +92,15 @@ namespace AISwitchDesk
 				int obj = appExitMenu.index;
 				appExitMenu.Hide();
 				quit(obj);
+			};
+			usageItem.Click += delegate
+			{
+				int target = appExitMenu.index;
+				appExitMenu.Hide();
+				if (appExitMenu.RefreshUsage != null)
+				{
+					appExitMenu.RefreshUsage(target);
+				}
 			};
 		}
 

@@ -262,6 +262,7 @@ namespace AISwitchDesk
 			});
 			Click("OfficialPage", delegate
 			{
+				// Opens the page and leaves it open; "刷新额度" reads it and closes it again.
 				Process.Start(new ProcessStartInfo("claude://claude.ai/settings/usage")
 				{
 					UseShellExecute = true
