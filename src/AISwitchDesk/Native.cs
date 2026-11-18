@@ -215,6 +215,9 @@ namespace AISwitchDesk
 		internal static extern uint GetDpiForWindow(IntPtr window);
 
 		[DllImport("user32.dll")]
+		internal static extern IntPtr WindowFromDC(IntPtr dc);
+
+		[DllImport("user32.dll")]
 		internal static extern IntPtr GetForegroundWindow();
 
 		[DllImport("user32.dll")]

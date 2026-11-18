@@ -262,15 +262,7 @@ namespace AISwitchDesk
 			base.MaximizeBox = false;
 			MinimumSize = new Size(32, 32);
 			BackColor = DeskTheme.Current.RailBottom;
-			tips.OwnerDraw = true;
-			tips.Draw += delegate(object sender, DrawToolTipEventArgs e)
-			{
-				var theme = DeskTheme.Current;
-				using (var fill = new SolidBrush(theme.Surface)) e.Graphics.FillRectangle(fill, e.Bounds);
-				using (var edge = new Pen(theme.Rule)) e.Graphics.DrawRectangle(edge, 0, 0, e.Bounds.Width - 1, e.Bounds.Height - 1);
-				Rectangle textBounds = Rectangle.Inflate(e.Bounds, -3, -1);
-				TextRenderer.DrawText(e.Graphics, e.ToolTipText, e.Font, textBounds, theme.Ink, TextFormatFlags.VerticalCenter | TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
-			};
+			InitializeTips();
 			base.KeyPreview = true;
 			SetStyle(ControlStyles.UserPaint | ControlStyles.Opaque | ControlStyles.AllPaintingInWmPaint, true);
 			string[] labels = { "ChatGPT", "Claude", "并排对照", "同时提问", "设置", "收起侧栏" };
@@ -1528,6 +1520,7 @@ namespace AISwitchDesk
 				transferMotion.Dispose();
 				poll.Dispose();
 				tips.Dispose();
+				if (tipFont != null) tipFont.Dispose();
 				if (dropTargets != null) dropTargets.Dispose();
 				if (backdrop != null)
 				{

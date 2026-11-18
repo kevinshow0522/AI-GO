@@ -22,6 +22,15 @@
         </Grid>
       </ControlTemplate></Setter.Value></Setter>
     </Style>
+    <!-- The same tip as in the settings window and on the rail. -->
+    <Style TargetType="ToolTip">
+      <Setter Property="Foreground" Value="{DynamicResource ThemeInk}"/>
+      <Setter Property="Background" Value="{DynamicResource ThemeSurface}"/>
+      <Setter Property="BorderBrush" Value="{DynamicResource ThemeRule}"/>
+      <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ToolTip">
+        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="7" Padding="9,5"><ContentPresenter/></Border>
+      </ControlTemplate></Setter.Value></Setter>
+    </Style>
     <Style x:Key="Tick" TargetType="CheckBox">
       <Setter Property="Cursor" Value="Hand"/>
       <Setter Property="VerticalAlignment" Value="Center"/>

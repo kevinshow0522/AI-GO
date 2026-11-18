@@ -15,6 +15,8 @@ namespace AISwitchDesk
         private NotifyIcon tray;
         private ContextMenuStrip trayMenu;
         private ToolStripMenuItem trayToggle;
+        private Font trayMenuFont;
+        private int trayMenuDpi;
 
         // Set before the form is first shown: start with the rail in the tray.
         internal bool StartInTray;
@@ -26,19 +28,24 @@ namespace AISwitchDesk
 
         private void InitializeTray()
         {
-            trayMenu = new ContextMenuStrip { ShowImageMargin = false, Font = new Font("Microsoft YaHei UI", 9.5f) };
-            trayToggle = new ToolStripMenuItem("隐藏侧栏", null, delegate { ToggleRail(); }) { Font = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Bold) };
+            trayMenu = new ContextMenuStrip { ShowImageMargin = false };
+            trayToggle = new ToolStripMenuItem("隐藏侧栏", null, delegate { ToggleRail(); });
             trayMenu.Items.Add(trayToggle);
             trayMenu.Items.Add(new ToolStripMenuItem("同时提问", null, delegate { ShowRail(); OpenAsk(); }));
             trayMenu.Items.Add(new ToolStripMenuItem("设置", null, delegate { ShowRail(); OpenSettings(); }));
             trayMenu.Items.Add(new ToolStripSeparator());
             trayMenu.Items.Add(new ToolStripMenuItem("退出", null, delegate { ExitRail(); }));
-            // The same breathing room as the sidebar's other popups.
-            trayMenu.Padding = new Padding(2, 4, 2, 4);
-            foreach (ToolStripItem item in trayMenu.Items)
-                if (item is ToolStripMenuItem) item.Padding = new Padding(6, 4, 14, 4);
-            trayMenu.Opening += delegate { trayToggle.Text = Visible ? "隐藏到托盘" : "显示侧栏"; };
             ApplyTrayTheme();
+            // Type, padding and corners follow the sidebar's other popups, at
+            // the scaling of the display the menu opens on. See DeskPopups.cs.
+            trayMenu.Opening += delegate
+            {
+                trayToggle.Text = Visible ? "隐藏到托盘" : "显示侧栏";
+                ShapeRailMenu();
+            };
+            trayMenu.Opened += delegate { RoundRailMenu(); };
+            trayMenu.SizeChanged += delegate { RoundRailMenu(); };
+            ShapeRailMenu();
             tray = new NotifyIcon { Icon = base.Icon, Text = AppTitle, ContextMenuStrip = trayMenu };
             tray.MouseClick += delegate(object sender, MouseEventArgs e)
             {
@@ -50,7 +57,7 @@ namespace AISwitchDesk
         private void ApplyTrayTheme()
         {
             if (trayMenu == null) return;
-            trayMenu.Renderer = new TrayMenuRenderer();
+            trayMenu.Renderer = new TrayMenuRenderer { Dpi = dpi };
             trayMenu.BackColor = DeskTheme.Current.Surface;
             trayMenu.ForeColor = DeskTheme.Current.Ink;
         }
@@ -118,11 +125,19 @@ namespace AISwitchDesk
                 trayMenu.Dispose();
                 trayMenu = null;
             }
+            if (trayMenuFont != null)
+            {
+                trayMenuFont.Dispose();
+                trayMenuFont = null;
+            }
         }
 
-        // A flat menu in the sidebar's colours.
+        // The rail's menu as a rounded card in the sidebar's colours, with the
+        // row under the pointer filled the way the app icons' menu fills it.
         private sealed class TrayMenuRenderer : ToolStripProfessionalRenderer
         {
+            internal int Dpi = 96;
+
             protected override void OnRenderToolStripBackground(ToolStripRenderEventArgs e)
             {
                 using (var fill = new SolidBrush(DeskTheme.Current.Surface)) e.Graphics.FillRectangle(fill, e.AffectedBounds);
@@ -130,15 +145,17 @@ namespace AISwitchDesk
 
             protected override void OnRenderToolStripBorder(ToolStripRenderEventArgs e)
             {
+                e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                using (var path = RailArt.Rounded(new RectangleF(.5f, .5f, e.ToolStrip.Width - 1f, e.ToolStrip.Height - 1f), PopupLook.Scale(PopupLook.MenuRadius, Dpi)))
                 using (var edge = new Pen(DeskTheme.Current.Rule))
-                    e.Graphics.DrawRectangle(edge, 0, 0, e.AffectedBounds.Width - 1, e.AffectedBounds.Height - 1);
+                    e.Graphics.DrawPath(edge, path);
             }
 
             protected override void OnRenderMenuItemBackground(ToolStripItemRenderEventArgs e)
             {
                 if (!e.Item.Selected || !e.Item.Enabled) return;
-                var area = new Rectangle(3, 1, e.Item.Width - 6, e.Item.Height - 2);
-                using (var path = RailArt.Rounded(area, 5f))
+                var area = new RectangleF(0f, 0f, e.Item.Width, e.Item.Height);
+                using (var path = RailArt.Rounded(area, PopupLook.Scale(PopupLook.RowRadius, Dpi)))
                 using (var fill = new SolidBrush(DeskTheme.Current.Hover))
                 {
                     e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
@@ -149,6 +166,10 @@ namespace AISwitchDesk
             protected override void OnRenderItemText(ToolStripItemTextRenderEventArgs e)
             {
                 e.TextColor = e.Item.Enabled ? DeskTheme.Current.Ink : DeskTheme.Current.Muted;
+                // Centred in the row, starting at the row's own padding.
+                int left = PopupLook.Scale(PopupLook.RowPadX, Dpi);
+                e.TextRectangle = new Rectangle(left, 0, Math.Max(1, e.Item.Width - left), e.Item.Height);
+                e.TextFormat = TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding;
                 base.OnRenderItemText(e);
             }
 
