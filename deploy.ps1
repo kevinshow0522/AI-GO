@@ -58,6 +58,27 @@ function Start-Sidebar {
     throw 'The updated sidebar and background worker did not both start.'
 }
 
+# The Start menu keeps the picture it took when a shortcut was made, so a new
+# app icon does not show there. Saving the shortcut again and telling the shell
+# that icons changed makes it take the installed app's current one.
+function Update-ShortcutIcons {
+    $programs = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs'
+    if (!(Test-Path -LiteralPath $programs)) { return }
+    $shell = New-Object -ComObject WScript.Shell
+    $saved = 0
+    foreach ($file in (Get-ChildItem -LiteralPath $programs -Filter '*.lnk' -Recurse -ErrorAction SilentlyContinue)) {
+        $link = $shell.CreateShortcut($file.FullName)
+        if ($link.TargetPath -ne $installPath) { continue }
+        $link.IconLocation = "$installPath,0"
+        $link.Save()
+        $saved++
+    }
+    if (!$saved) { return }
+    Add-Type -Namespace AISwitchDeskDeploy -Name Shell -MemberDefinition '[DllImport("shell32.dll")] public static extern void SHChangeNotify(int eventId, uint flags, IntPtr item1, IntPtr item2);'
+    [AISwitchDeskDeploy.Shell]::SHChangeNotify(0x08000000, 0, [IntPtr]::Zero, [IntPtr]::Zero) # SHCNE_ASSOCCHANGED
+    Write-Output ("Refreshed the icon of $saved Start menu shortcut(s)")
+}
+
 try {
     try { $locked = $mutex.WaitOne(0) } catch [Threading.AbandonedMutexException] { $locked = $true }
     if (!$locked) { throw 'Another update is already running.' }
@@ -98,6 +119,8 @@ try {
         Start-Sidebar
         Write-Output ('Installed ' + (Get-Item -LiteralPath $installPath).VersionInfo.FileVersion)
         if ($changed) { Write-Output ('Backup ' + $backup) }
+        # A stale icon is cosmetic. It must not undo an installation that worked.
+        try { Update-ShortcutIcons } catch { Write-Output ('Shortcut icons not refreshed: ' + $_.Exception.Message) }
     } catch {
         $failure = $_
         if ($changed -and (Test-Path -LiteralPath $backup)) {

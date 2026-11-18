@@ -13,7 +13,7 @@ ChatGPT 一侧会识别 OpenAI 签名的桌面客户端：Codex 版和 ChatGPT �
 .\build\AISwitchDesk.exe
 ```
 
-应用源码、XAML 界面和图标位于 `src/`。根目录的 `*Tests.cs` 和 `Verify.cs` 是回归检查，用 `test.ps1` 运行（见下）。`deploy.ps1` 用于更新当前 Windows 用户已安装的侧栏，并备份旧版本。
+应用源码、XAML 界面和图标位于 `src/`。根目录的 `*Tests.cs` 和 `Verify.cs` 是回归检查，用 `test.ps1` 运行（见下）。`deploy.ps1` 用于更新当前 Windows 用户已安装的侧栏，并备份旧版本；装好后会刷新开始菜单快捷方式的图标，让它显示程序当前的图标。
 
 ## 后台交接
 
