@@ -57,10 +57,98 @@ namespace AISwitchDesk
         {
             int cut = text.LastIndexOf('\n');
             if (cut < 0) return text;
-            string last = text.Substring(cut + 1).Trim();
-            if (last.Length > 24 || !Regex.IsMatch(last, "\\d{1,2}[:：]\\d{2}")) return text;
-            string rest = Regex.Replace(last, "今天|昨天|前天|上午|下午|凌晨|早上|中午|晚上|星期.|周.|週.|年|月|日|today|yesterday|am|pm|at|[\\d\\s:：,，./\\-]", "", RegexOptions.IgnoreCase);
-            return rest.Length == 0 ? text.Substring(0, cut).TrimEnd() : text;
+            return IsTimeLine(text.Substring(cut + 1)) ? text.Substring(0, cut).TrimEnd() : text;
+        }
+
+        // A line that is nothing but a time, with or without its day.
+        private static bool IsTimeLine(string line)
+        {
+            line = line.Trim();
+            if (line.Length > 24 || !Regex.IsMatch(line, "\\d{1,2}[:：]\\d{2}")) return false;
+            return Regex.Replace(line, "今天|昨天|前天|上午|下午|凌晨|早上|中午|晚上|星期.|周.|週.|年|月|日|today|yesterday|am|pm|at|[\\d\\s:：,，./\\-]", "", RegexOptions.IgnoreCase).Length == 0;
+        }
+
+        private const string GptLabels = "^(?:(?:ChatGPT|GPT|Codex)\\s*(?:[說说]|said)|你[說说]|您[說说]|You said|Assistant)\\s*[:：]$";
+
+        // One-line notes ChatGPT leaves while it works. Several can run together on a line.
+        private const string GptActivity = "^(?:已?运行了?命令|已搜索网页|已查看 ?\\d+ ?张图像|已优化对话|已使用 .{1,40}运行了命令|Ran (?:a )?commands?|Searched the web|Viewed \\d+ images?)+$";
+
+        // What ChatGPT shows around a reply that is not the reply: labels for
+        // screen readers, notes of commands run and pictures viewed, how long it
+        // took, a reconnecting counter, and the "latest reply" button under it.
+        internal static string WithoutActivity(string text)
+        {
+            string[] lines = (text ?? "").Replace("\r\n", "\n").Split('\n');
+            var kept = new List<string>();
+            bool reconnecting = false;
+            // True just after a note of work done, where a tool's panel may follow:
+            // its name on a line, then what it returned as a block of code.
+            bool working = false;
+            for (int i = 0; i < lines.Length; i++)
+            {
+                string raw = lines[i];
+                string line = raw.Trim();
+                // Everything from the "latest reply" button on belongs to the page, not the reply.
+                if (Regex.IsMatch(line, "^(最新一条回复|跳至最新回复|Jump to latest|Scroll to bottom)$", RegexOptions.IgnoreCase)) break;
+                if (Regex.IsMatch(line, "^(正在重新连接|Reconnecting)[.…]*$", RegexOptions.IgnoreCase))
+                {
+                    reconnecting = true;
+                    continue;
+                }
+                if (line.Length == 0)
+                {
+                    kept.Add(raw);
+                    continue;
+                }
+                // The counter under "reconnecting": "1" and "/5" on lines of their own.
+                if (reconnecting && Regex.IsMatch(line, "^/?\\d+$")) continue;
+                reconnecting = false;
+                if (Regex.IsMatch(line, GptActivity, RegexOptions.IgnoreCase))
+                {
+                    working = true;
+                    continue;
+                }
+                if (working)
+                {
+                    string next = "";
+                    for (int j = i + 1; j < lines.Length && next.Length == 0; j++) next = lines[j].Trim();
+                    bool block = Regex.IsMatch(line, CodeLabel, RegexOptions.IgnoreCase) || line == "{" || line == "[";
+                    // A tool's name: short, not a sentence, and followed by more work or by its output.
+                    bool title = !block && line.Length <= 40 && !Regex.IsMatch(line, "[。！？，；.!?,;:：]") &&
+                        (Regex.IsMatch(next, GptActivity, RegexOptions.IgnoreCase) || Regex.IsMatch(next, CodeLabel, RegexOptions.IgnoreCase) || next == "{" || next == "[");
+                    if (title) continue;
+                    if (block)
+                    {
+                        // Skip the label, then the block up to the unindented bracket
+                        // that closes it. Without one, only the label goes.
+                        int start = (line == "{" || line == "[") ? i : i + 1;
+                        string open = (start < lines.Length) ? lines[start].Trim() : "";
+                        if (open == "{" || open == "[")
+                        {
+                            int end = Array.FindIndex(lines, start + 1, (string candidate) => candidate.TrimEnd() == ((open == "{") ? "}" : "]"));
+                            if (end > 0) i = end;
+                        }
+                        working = false;
+                        continue;
+                    }
+                }
+                working = false;
+                if (Regex.IsMatch(line, GptLabels, RegexOptions.IgnoreCase)) continue;
+                if (Regex.IsMatch(line, "^(用时|Worked for|Thought for) .{1,30}$", RegexOptions.IgnoreCase) || IsTimeLine(line)) continue;
+                kept.Add(raw);
+            }
+            return Clean(string.Join("\n", kept));
+        }
+
+        // The language named above a block of code.
+        private const string CodeLabel = "^(json|text|plaintext|output|bash|shell|powershell|python|ruby|javascript|xml|yaml)$";
+
+        // The last exchange: the person's most recent message and what followed it.
+        internal static List<ChatTurn> LastExchange(List<ChatTurn> turns)
+        {
+            int start = turns.FindLastIndex((ChatTurn turn) => !turn.Assistant);
+            if (start < 0) start = Math.Max(0, turns.Count - 1);
+            return turns.GetRange(start, turns.Count - start);
         }
 
         // Text as the page gives it, without the stray characters and gaps.
@@ -107,7 +195,7 @@ namespace AISwitchDesk
             foreach (GptTurn turn in shown.Turns)
             {
                 Add(turns, false, turn.Prompt);
-                Add(turns, true, Between(page, turn.FirstAnswer, turn.LastAnswer) ?? turn.Body);
+                Add(turns, true, WithoutActivity(Between(page, turn.FirstAnswer, turn.LastAnswer) ?? turn.Body));
             }
             return turns;
         }
@@ -221,7 +309,7 @@ namespace AISwitchDesk
             var text = new StringBuilder();
             text.Append("# ").Append(app).Append(" 对话记录\n\n");
             text.Append("由 AI 双窗于 ").Append(when.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture));
-            text.Append(" 从 ").Append(app).Append(" 导出，共 ").Append(turns.Count).Append(" 条消息。\n");
+            text.Append(" 从 ").Append(app).Append(" 导出，是当前对话的最后一轮。\n");
             foreach (ChatTurn turn in turns)
             {
                 text.Append("\n## ").Append(turn.Assistant ? app : "用户").Append("\n\n").Append(turn.Text).Append("\n");

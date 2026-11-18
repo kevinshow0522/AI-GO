@@ -4,8 +4,9 @@ using System.Threading.Tasks;
 
 namespace AISwitchDesk
 {
-    // "对话传给…" in an app icon's menu: the conversation that app is showing
-    // becomes a Markdown file in the other app's input box. Nothing is sent;
+    // "对话传给…" in an app icon's menu: the last exchange of the conversation
+    // that app is showing becomes a Markdown file in the other app's input box.
+    // Nothing is sent;
     // the person adds what they want to ask about it and sends it themselves.
     internal sealed partial class DeskForm
     {
@@ -30,7 +31,8 @@ namespace AISwitchDesk
             {
                 await Task.Run(delegate
                 {
-                    List<ChatTurn> turns = Transcript.Read(name, window);
+                    // Only the last exchange goes across: the latest message and its reply.
+                    List<ChatTurn> turns = Transcript.LastExchange(Transcript.Read(name, window));
                     count = turns.Count;
                     if (count > 0) path = Transcript.Save(name, turns);
                 });
@@ -53,7 +55,7 @@ namespace AISwitchDesk
             }
             DropTrace.Write("transcript", name + " messages=" + count + " to " + clients[to].Name);
             QueueFiles(to, new[] { path }, false);
-            Notice(to, "已把 " + name + " 的 " + count + " 条消息存成文件，正在放进 " + clients[to].Name + " 的输入框。补一句想问的再发送。");
+            Notice(to, "已把 " + name + " 的最后一轮对话存成文件，正在放进 " + clients[to].Name + " 的输入框。补一句想问的再发送。");
         }
     }
 }

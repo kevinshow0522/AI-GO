@@ -136,8 +136,23 @@ class Verify
             turnList.Add(one);
         }
         string exported = (string)Call(transcript.GetMethod("Markdown", BindingFlags.Static | BindingFlags.NonPublic), "Claude", turnList, read);
-        Check(exported.StartsWith("# Claude 对话记录\n") && exported.Contains("共 2 条消息") && exported.Contains("\n## 用户\n\n你好\n") &&
+        Check(exported.StartsWith("# Claude 对话记录\n") && exported.Contains("最后一轮") && exported.Contains("\n## 用户\n\n你好\n") &&
             exported.Contains("\n## Claude\n\n你好，有什么可以帮你？\n"), "a conversation is written as a Markdown file with each side named");
+        // Three messages on the page: only the latest one and its reply go across.
+        object earlier = Activator.CreateInstance(turnType, true);
+        turnType.GetField("Text", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(earlier, "更早的回复");
+        turnType.GetField("Assistant", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(earlier, true);
+        turnList.Insert(0, earlier);
+        var lastRound = (System.Collections.IList)Call(transcript.GetMethod("LastExchange", BindingFlags.Static | BindingFlags.NonPublic), turnList);
+        Check(lastRound.Count == 2 && (string)turnType.GetField("Text", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(lastRound[0]) == "你好", "only the last exchange is handed over");
+        // What ChatGPT shows around a reply while it works is not the reply.
+        var plain = transcript.GetMethod("WithoutActivity", BindingFlags.Static | BindingFlags.NonPublic);
+        string working = "我会按参考图重排铺地。\n\n运行了命令\n\n已查看 2 张图像\nChatGPT 说：\n\n双圆已经描好。\n运行了命令已搜索网页\n今天 23:56\n用时 7分钟 4秒\n\n正在重新连接\n1\n/5\n下载模型\n\n最新一条回复\n\nclaude-conversation.md";
+        Check((string)Call(plain, working) == "我会按参考图重排铺地。\n\n双圆已经描好。\n\n下载模型", "labels, activity notes, timings and page buttons are left out of a reply");
+        Check((string)Call(plain, "一共 3 步：\n1\n2\n3") == "一共 3 步：\n1\n2\n3", "numbers on their own lines stay when nothing was reconnecting");
+        // A tool's panel after a note of work: its name, then what it returned. Code in the reply itself stays.
+        string toolPanel = "先看模型状态。\n\n已运行命令\n已运行命令\n\nSketchup runtime\n已运行命令\n\nSketchup runtime\njson\n{\n  \"state\": \"unconfigured\",\n  \"nested\": {\n    \"a\": 1\n  }\n}\n\n状态是未配置。配置示例：\njson\n{\n  \"path\": \"C:\\\\SketchUp\"\n}";
+        Check((string)Call(plain, toolPanel) == "先看模型状态。\n\n状态是未配置。配置示例：\njson\n{\n  \"path\": \"C:\\\\SketchUp\"\n}", "a tool's output goes, code the reply shows stays");
         var resetAt = newApp.GetType("AISwitchDesk.PlanUsage").GetMethod("ResetEpoch", BindingFlags.Static | BindingFlags.NonPublic);
         Check((long)Call(resetAt, "Resets in 3 hr 12 min", read) == epoch(read.AddMinutes(192)), "relative reset time");
         Check((long)Call(resetAt, "Resets Sat 9:00 PM", read) == epoch(new DateTime(2026, 11, 21, 21, 0, 0)), "English weekday reset time");
