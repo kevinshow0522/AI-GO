@@ -20,8 +20,13 @@ namespace AISwitchDesk
 
 		private readonly System.Windows.Controls.Button usageItem;
 
+		private readonly System.Windows.Controls.Button sendItem;
+
 		// Asks for a fresh reading of the app's plan allowance.
 		internal Action<int> RefreshUsage;
+
+		// Hands the conversation the app is showing to the other app.
+		internal Action<int> SendConversation;
 
 		private readonly OutsideClick outside;
 
@@ -41,6 +46,7 @@ namespace AISwitchDesk
 			ApplyTheme();
 			item = (System.Windows.Controls.Button)window.FindName("Quit");
 			usageItem = (System.Windows.Controls.Button)window.FindName("Usage");
+			sendItem = (System.Windows.Controls.Button)window.FindName("Send");
 			WindowInteropHelper windowInteropHelper = new WindowInteropHelper(window)
 			{
 				Owner = owner.Handle
@@ -72,7 +78,7 @@ namespace AISwitchDesk
 			};
 			window.PreviewMouseDown += delegate
 			{
-				if (!item.IsMouseOver && !usageItem.IsMouseOver)
+				if (!item.IsMouseOver && !usageItem.IsMouseOver && !sendItem.IsMouseOver)
 				{
 					Hide();
 				}
@@ -102,6 +108,15 @@ namespace AISwitchDesk
 					appExitMenu.RefreshUsage(target);
 				}
 			};
+			sendItem.Click += delegate
+			{
+				int target = appExitMenu.index;
+				appExitMenu.Hide();
+				if (appExitMenu.SendConversation != null)
+				{
+					appExitMenu.SendConversation(target);
+				}
+			};
 		}
 
 		internal void ApplyTheme()
@@ -113,6 +128,10 @@ namespace AISwitchDesk
 		{
 			index = target;
 			item.IsEnabled = enabled;
+			// The menu belongs to one app; the conversation goes to the other.
+			string label = "对话传给 " + ((target == 0) ? "Claude" : "ChatGPT");
+			sendItem.Content = label;
+			System.Windows.Automation.AutomationProperties.SetName(sendItem, label);
 			Rectangle workingArea = Screen.FromPoint(anchor).WorkingArea;
 			uint dpiForWindow = Native.GetDpiForWindow(handle);
 			PlaceAt(anchor, workingArea, dpiForWindow);

@@ -2,12 +2,14 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="AI 双窗 · 应用菜单" WindowStartupLocation="Manual" WindowStyle="None"
         ResizeMode="NoResize" ShowInTaskbar="False" AllowsTransparency="True" Background="Transparent"
-        Width="128" Height="74" FontFamily="Segoe UI Variable Text, Microsoft YaHei UI, Segoe UI"
+        Width="172" Height="106" FontFamily="Segoe UI Variable Text, Microsoft YaHei UI, Segoe UI"
         FontSize="13" Foreground="{DynamicResource ThemeInk}" UseLayoutRounding="True">
   <Window.Resources>
     <!-- The ring from the app icons, three quarters full. -->
     <Geometry x:Key="UsageIcon">M 7,1.5 A 5.5,5.5 0 1 1 1.5,7</Geometry>
     <Geometry x:Key="QuitIcon">M 7,1.25 V 6.5 M 3.8,3.4 A 5,5 0 1 0 10.2,3.4</Geometry>
+    <!-- A page handed across. -->
+    <Geometry x:Key="SendIcon">M 1.5,7 H 12 M 8.5,3.5 L 12,7 L 8.5,10.5</Geometry>
     <!-- One menu row. Tag holds the icon's outline. -->
     <Style x:Key="Row" TargetType="Button">
       <Setter Property="Height" Value="32"/>
@@ -34,6 +36,8 @@
   </Window.Resources>
   <Border Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeRule}" BorderThickness="1" CornerRadius="12" Padding="4">
     <StackPanel KeyboardNavigation.DirectionalNavigation="Cycle">
+      <!-- Its label names the other app; AppExitMenu sets it each time the menu opens. -->
+      <Button Name="Send" Style="{StaticResource Row}" Tag="{StaticResource SendIcon}" AutomationProperties.Name="对话传给另一边" Content="对话传给另一边"/>
       <Button Name="Usage" Style="{StaticResource Row}" Tag="{StaticResource UsageIcon}" AutomationProperties.Name="刷新用量" Content="刷新用量"/>
       <Button Name="Quit" Style="{StaticResource Row}" Tag="{StaticResource QuitIcon}" AutomationProperties.Name="退出" Content="退出" IsDefault="True"/>
     </StackPanel>

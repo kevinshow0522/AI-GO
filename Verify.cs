@@ -118,6 +118,26 @@ class Verify
         var windowName = newApp.GetType("AISwitchDesk.PlanUsage").GetMethod("ClaudeWindow", BindingFlags.Static | BindingFlags.NonPublic);
         Check((string)Call(windowName, "All models") == "每周" && (string)Call(windowName, "每周限额（所有模型）") == "每周" &&
             (string)Call(windowName, "Sonnet only") == "Sonnet only" && (string)Call(windowName, "5-hour limit") == "当前会话", "allowance names across layouts");
+        // A conversation handed to the other app: tidy text, and no send time under a person's message.
+        var transcript = newApp.GetType("AISwitchDesk.Transcript");
+        var tidy = transcript.GetMethod("Clean", BindingFlags.Static | BindingFlags.NonPublic);
+        var noTime = transcript.GetMethod("WithoutTime", BindingFlags.Static | BindingFlags.NonPublic);
+        Check(tidy != null && noTime != null, "conversations can be handed to the other app");
+        Check((string)Call(tidy, "  第一行 \r\n\r\n\r\n\r\n第二行￼\n") == "第一行\n\n第二行", "conversation text is tidied");
+        Check((string)Call(noTime, "帮我看看这段代码\n13:45") == "帮我看看这段代码" && (string)Call(noTime, "帮我看看\n昨天 下午 3:20") == "帮我看看", "the send time is not part of a message");
+        Check((string)Call(noTime, "会议改到\n明天 13:45 开始") == "会议改到\n明天 13:45 开始" && (string)Call(noTime, "13:45") == "13:45", "a message that mentions a time keeps it");
+        var turnType = newApp.GetType("AISwitchDesk.ChatTurn");
+        var turnList = (System.Collections.IList)Activator.CreateInstance(typeof(System.Collections.Generic.List<>).MakeGenericType(turnType));
+        foreach (var pair in new[] { new object[] { false, "你好" }, new object[] { true, "你好，有什么可以帮你？" } })
+        {
+            object one = Activator.CreateInstance(turnType, true);
+            turnType.GetField("Assistant", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(one, pair[0]);
+            turnType.GetField("Text", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(one, pair[1]);
+            turnList.Add(one);
+        }
+        string exported = (string)Call(transcript.GetMethod("Markdown", BindingFlags.Static | BindingFlags.NonPublic), "Claude", turnList, read);
+        Check(exported.StartsWith("# Claude 对话记录\n") && exported.Contains("共 2 条消息") && exported.Contains("\n## 用户\n\n你好\n") &&
+            exported.Contains("\n## Claude\n\n你好，有什么可以帮你？\n"), "a conversation is written as a Markdown file with each side named");
         var resetAt = newApp.GetType("AISwitchDesk.PlanUsage").GetMethod("ResetEpoch", BindingFlags.Static | BindingFlags.NonPublic);
         Check((long)Call(resetAt, "Resets in 3 hr 12 min", read) == epoch(read.AddMinutes(192)), "relative reset time");
         Check((long)Call(resetAt, "Resets Sat 9:00 PM", read) == epoch(new DateTime(2026, 11, 21, 21, 0, 0)), "English weekday reset time");

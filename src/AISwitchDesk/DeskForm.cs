@@ -1130,6 +1130,7 @@ namespace AISwitchDesk
 				{
 					exitMenu = new AppExitMenu(this, QuitApp);
 					exitMenu.RefreshUsage = RefreshUsageFromMenu;
+					exitMenu.SendConversation = SendConversation;
 				}
 				exitMenu.Show(index, anchor, !clients[index].Quitting, fromKeyboard);
 			}
